@@ -40,6 +40,38 @@
   .msg.me{align-self:flex-end;background:#d4e6ff;border-bottom-right-radius:4px}
   .msg.them{align-self:flex-start;background:#fff;border-bottom-left-radius:4px}
   .msg .t{font-size:10px;color:var(--muted);text-align:right;margin-top:3px}
+  .msg{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  .tk{color:#8a93a6}.tk.seen{color:#1a8cff;font-weight:700}
+  .msg.del{font-style:italic;color:var(--muted)}
+  .msg.hold{filter:brightness(.88)}
+  .gname{font-size:12px;font-weight:700;color:#7048e8;margin-bottom:2px}
+  .avatar.grp{background:#e5dbff;color:#7048e8}
+  .item.sel{background:#e7f5ff}
+  .item .chk{width:24px;height:24px;border-radius:50%;border:2px solid #c5cad6;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px}
+  .item.sel .chk{background:var(--green);border-color:var(--green)}
+  .msg.file{padding:5px}
+  .fthumb{display:block;max-width:210px;max-height:260px;border-radius:10px}
+  .fcard{padding:8px 10px;min-width:170px;font-size:14px}
+  .fcard small{color:var(--muted)}
+  .msg.file .t{padding:0 6px 2px}
+  .fbar{height:4px;background:#0001;border-radius:2px;margin:4px 6px 0;overflow:hidden}
+  .fbar i{display:block;height:100%;background:var(--blue);width:0;transition:width .3s}
+  #attachBtn{background:#eef3ff;color:var(--blue)}
+  .avatar.dp{background-size:cover;background-position:center;color:transparent}
+  .ring{padding:2px;border-radius:50%;border:2.5px solid var(--green);display:inline-flex}
+  .ring.seen{border-color:#c5cad6}
+  #statusView{background:#000;color:#fff}
+  .sbars{display:flex;gap:4px;padding:10px 10px 0}
+  .sbars span{flex:1;height:3px;background:#ffffff40;border-radius:2px;overflow:hidden}
+  .sbars span i{display:block;height:100%;width:0;background:#fff}
+  .shead{display:flex;align-items:center;gap:10px;padding:10px 12px}
+  .sbody{flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+  .sbody img{max-width:100%;max-height:100%;object-fit:contain}
+  .stext{font-size:26px;font-weight:600;text-align:center;padding:30px;white-space:pre-wrap;word-wrap:break-word;line-height:1.35}
+  .scap{position:absolute;bottom:0;left:0;right:0;padding:14px 16px 22px;background:linear-gradient(transparent,#000c);font-size:16px;text-align:center}
+  .colors{display:flex;gap:10px;justify-content:center;padding:12px}
+  .colors b{width:30px;height:30px;border-radius:50%;border:3px solid #fff8;display:inline-block}
+  #seText{width:100%;min-height:200px;background:transparent;border:none;color:#fff;font-size:26px;font-weight:600;text-align:center;outline:none;resize:none;font-family:inherit}
   .sys{align-self:center;font-size:12px;color:var(--muted);background:#fff8;padding:4px 10px;border-radius:10px}
   .composer{display:flex;gap:8px;padding:8px;background:#fff;border-top:1px solid #e4e7ee}
   .composer input{flex:1;border-radius:24px;font-size:16px;padding:11px 16px}
@@ -135,9 +167,26 @@
   </header>
   <div class="tabs">
     <button class="on" data-tab="tabHome">Chats</button>
+    <button data-tab="tabStatus">Status</button>
     <button data-tab="tabContacts">Contacts</button>
   </div>
+  <div class="content tabpane" id="tabStatus">
+    <div class="card">
+      <div class="item" id="myStatusRow" style="border:none;padding:4px 0">
+        <span class="ring seen" id="myStatusRing"><div class="avatar" id="myStatusAv"></div></span>
+        <div class="meta"><div class="name">Mera status</div><div class="last" id="myStatusSub">Dabakar dekhein</div></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn ghost" id="stTextBtn">✏️ Text status</button>
+        <button class="btn" id="stPhotoBtn">📷 Photo status</button>
+      </div>
+      <p class="hint" id="stHint">Status 24 ghante baad apne aap hat jata hai. Jinke paas aapka number hai, wo dekh sakte hain.</p>
+    </div>
+    <div class="secTitle">Haal ke updates</div>
+    <div class="list card" id="statusList" style="padding:4px 12px"></div>
+  </div>
   <div class="content tabpane" id="tabContacts">
+    <button class="btn" id="newGroupBtn" style="margin-bottom:10px">👥 Naya group banayein</button>
     <input id="contactSearch" placeholder="🔍 Naam ya number khojein">
     <div id="contactsPerm" class="card" style="display:none;margin-top:12px">
       <p style="margin-top:0">Apne phone contacts me se kaun MeraCall par hai, ye dekhne ke liye permission dein.</p>
@@ -216,6 +265,64 @@
   </div>
 </div>
 
+<!-- STATUS: likhna / photo -->
+<div class="screen" id="statusEdit" style="background:#0A7CFF;color:#fff">
+  <header style="background:transparent"><button class="iconbtn" id="seBack">✖</button><h1 id="seTitle">Text status</h1></header>
+  <div class="sbody" id="seBody" style="flex-direction:column">
+    <textarea id="seText" maxlength="700" placeholder="Kuch likhiye…"></textarea>
+    <img id="seImg" style="display:none;max-height:60vh">
+  </div>
+  <div class="colors" id="seColors"></div>
+  <div class="composer" style="background:#0003;border:none">
+    <input id="seCap" placeholder="Caption likhein (optional)…" maxlength="300" style="display:none">
+    <button id="sePost" style="margin-left:auto;background:var(--green)">➤</button>
+  </div>
+</div>
+
+<!-- STATUS: dekhna -->
+<div class="screen" id="statusView">
+  <div class="sbars" id="svBars"></div>
+  <div class="shead"><button class="iconbtn" id="svBack">←</button><div class="avatar" id="svAv" style="width:38px;height:38px;font-size:15px"></div>
+    <div style="flex:1"><div id="svName" style="font-weight:600"></div><div id="svTime" style="font-size:12px;opacity:.75"></div></div>
+    <button class="iconbtn" id="svDel" style="display:none">🗑️</button></div>
+  <div class="sbody" id="svBody"></div>
+</div>
+
+<!-- GROUP: banana / member jodna -->
+<div class="screen" id="groupPick">
+  <header><button class="iconbtn" id="gpBack">←</button><h1 id="gpTitle">Naya group</h1></header>
+  <div class="content">
+    <div class="card" id="gpNameBox">
+      <label style="margin-top:0">Group ka naam</label>
+      <input id="gpName" maxlength="50" placeholder="Jaise: Parivaar, Dukaan staff">
+    </div>
+    <div class="secTitle" id="gpCount">Member chuniye (sirf MeraCall wale)</div>
+    <div class="list card" id="gpList" style="padding:4px 12px"></div>
+    <button class="btn green" id="gpDone">Group banayein</button>
+    <p class="hint" id="gpMsg" style="color:var(--red)"></p>
+  </div>
+</div>
+
+<!-- GROUP: jaankari -->
+<div class="screen" id="groupInfo">
+  <header><button class="iconbtn" id="giBack">←</button><h1>Group ki jaankari</h1></header>
+  <div class="content">
+    <div class="card" style="text-align:center">
+      <div class="avatar grp" style="width:80px;height:80px;font-size:34px;margin:0 auto 8px">👥</div>
+      <div id="giName" style="font-size:20px;font-weight:700"></div>
+      <div class="hint" id="giSub"></div>
+      <div id="giAdminBox" style="margin-top:10px">
+        <input id="giRename" maxlength="50" placeholder="Naya naam">
+        <div style="height:8px"></div>
+        <div class="row"><button class="btn ghost" id="giRenameBtn">✏️ Naam badlein</button><button class="btn" id="giAddBtn">➕ Member jodein</button></div>
+      </div>
+    </div>
+    <div class="secTitle">Members</div>
+    <div class="list card" id="giMembers" style="padding:4px 12px"></div>
+    <button class="btn red" id="giLeave">🚪 Group chhodein</button>
+  </div>
+</div>
+
 <!-- 3. CHAT -->
 <div class="screen" id="chatScreen">
   <header>
@@ -227,9 +334,11 @@
     </div>
     <button class="iconbtn" id="chatVoice">📞</button>
     <button class="iconbtn" id="chatVideo">🎥</button>
+    <button class="iconbtn" id="chatInfo" style="display:none">ℹ️</button>
   </header>
   <div id="msgs"></div>
   <div class="composer">
+    <button id="attachBtn" title="Photo / Video / PDF">📎</button>
     <input id="msgInput" placeholder="Message likhein…" autocomplete="off">
     <button id="sendBtn">➤</button>
   </div>
@@ -263,6 +372,11 @@
 <div class="screen" id="settingsScreen">
   <header><button class="iconbtn" id="settingsBack">←</button><h1>Settings</h1></header>
   <div class="content">
+    <div class="card" style="text-align:center">
+      <div class="avatar" id="dpPreview" style="width:96px;height:96px;font-size:38px;margin:0 auto 10px"></div>
+      <div class="row"><button class="btn" id="dpSetBtn">📷 DP lagayein</button><button class="btn ghost" id="dpDelBtn">Hatayein</button></div>
+      <p class="hint" id="dpMsg">Aapki photo call aane par, chat aur contacts me dikhegi.</p>
+    </div>
     <div class="card">
       <label style="margin-top:0">Naam badlein</label>
       <input id="setName">
@@ -377,6 +491,7 @@ async function login(num, pass){
   }
   saveTok(j.idToken, j.refreshToken, j.expiresIn);
 }
+let authDead = false;   // Firebase ne kaha: ye account hata/band hai
 async function idToken(){
   if (!authTok) return null;
   if (Date.now() < authTok.exp) return authTok.id;
@@ -384,7 +499,10 @@ async function idToken(){
     const j = await idp('https://securetoken.googleapis.com/v1/token?key=' + API_KEY, 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(authTok.refresh), true);
     saveTok(j.id_token, j.refresh_token, j.expires_in);
     return authTok.id;
-  } catch(e) { return null; }
+  } catch(e) {
+    if (/USER_NOT_FOUND|USER_DISABLED|TOKEN_EXPIRED|INVALID_REFRESH_TOKEN|INVALID_GRANT/.test(e.message)) authDead = true;
+    return null;
+  }
 }
 function loginError(m){
   if (m === 'WRONG_PASSWORD') return 'Ye number pehle se registered hai aur password galat hai.';
@@ -409,10 +527,18 @@ function noteUser(num, u){
   store.set('registered', [...registered]);
 }
 /** Ye number verified hai? (internet/Firebase na mile to rokte nahi) */
-async function isTrusted(num){
-  if (!VERIFY_REQUIRED || verifiedSet.has(num)) return true;
-  try { const u = await fb('users/'+num+'.json'); noteUser(num, u || {}); return verifiedSet.has(num); }
-  catch(e) { return true; }
+const checkedAt = new Map();   // number -> aakhri jaanch ka samay
+async function isTrusted(num, fresh){
+  if (!VERIFY_REQUIRED) return true;
+  const recent = Date.now() - (checkedAt.get(num) || 0) < 10*60*1000;
+  if (!fresh && recent) return verifiedSet.has(num);
+  try {
+    const ctl = await Promise.race([ fb('users/'+num+'.json'), new Promise((_, rej)=>setTimeout(()=>rej(new Error('slow')), 5000)) ]);
+    noteUser(num, ctl || {}); checkedAt.set(num, Date.now());
+    return verifiedSet.has(num);
+  } catch(e) {
+    return checkedAt.has(num) ? verifiedSet.has(num) : true;  // internet na ho to purani jaankari
+  }
 }
 // ----- Number verification (WhatsApp se, Pankaj ke bot ke through) -----
 function renderVerify(){
@@ -552,7 +678,7 @@ function renderContacts(){
   const others = phoneContacts.filter(c=>!map[c.num] && c.num !== (me&&me.num) && match(c));
   $('onAppTitle').textContent = 'MeraCall par ('+onApp.length+')';
   onEl.innerHTML = onApp.length ? onApp.map(c=>
-    '<div class="item" data-num="'+c.num+'"><div class="avatar">'+esc(initials(c.name))+'</div><div class="meta"><div class="name">'+esc(c.name)+vTag(c.num)+'</div><div class="last">'+c.num+'</div></div>'+
+    '<div class="item" data-num="'+c.num+'">'+avHtml(c.num, c.name)+'<div class="meta"><div class="name">'+esc(c.name)+vTag(c.num)+'</div><div class="last">'+c.num+'</div></div>'+
     '<button class="mini" data-act="voice">📞</button><button class="mini" data-act="video">🎥</button><button class="mini" data-act="chat">💬</button></div>').join('')
     : '<div class="empty">'+(HAS_FB ? 'Aapke contacts me abhi kisi ke paas MeraCall nahi hai.<br>Neeche se invite bhejein 👇' : 'Firebase set nahi hai (README dekhein). Abhi sirf number daal kar call karein.')+'</div>';
   const shown = others.slice(0, 80);
@@ -628,10 +754,12 @@ window.addEventListener('online', ()=>{ if(!peer || peer.destroyed) startPeer();
 // ================= Data connection (chat + call control) =================
 function getConn(num){
   const c = conns[num];
-  if (c && (c.open || c._opening)) return c;
+  if (c && c.open) return c;
+  if (c && c._opening && Date.now() - (c._openingAt || 0) < 15000) return c;
+  if (c && !c.open) { try { c.close(); } catch(e) {} if (conns[num] === c) delete conns[num]; }  // atka hua: chhodo, naya banao
   if (!peer || !peer.open) return null;
   const nc = peer.connect(PREFIX + num, { reliable: true, metadata: { name: me.name } });
-  nc._opening = true;
+  nc._opening = true; nc._openingAt = Date.now();
   setupConn(nc);
   return nc;
 }
@@ -644,10 +772,12 @@ function setupConn(c){
     if (c.metadata && c.metadata.name) touchContact(num, c.metadata.name);
     send(num, { t:'hello', name: me.name });
     flushPending(num);
+    sendingNow[num] = null; pumpFiles(num);
+    flushDeletes(num); sendSeen(num); sendGroupStuff(num);
     if (current === 'chatScreen' && chatWith === num) $('chatSub').textContent = 'Online';
   });
   c.on('data', d => onData(num, d));
-  c.on('close', ()=>{ if (conns[num] === c) delete conns[num]; if (current==='chatScreen' && chatWith===num) $('chatSub').textContent=''; });
+  c.on('close', ()=>{ sendingNow[num] = null; if (conns[num] === c) delete conns[num]; if (current==='chatScreen' && chatWith===num) $('chatSub').textContent=''; });
   c.on('error', ()=>{ if (conns[num] === c) delete conns[num]; });
 }
 
@@ -662,7 +792,7 @@ function onData(num, d){
   switch(d.t){
     case 'hello': { isTrusted(num).then(ok=>{ if (!ok) return; const c = touchContact(num, d.name); if (!c.onApp) { c.onApp = true; saveContacts(); registered.add(num); renderContacts(); } }); break; }
     case 'msg': {
-      if (VERIFY_REQUIRED && !verifiedSet.has(num) && !d._checked) {
+      if (VERIFY_REQUIRED && !d._checked) {
         isTrusted(num).then(ok=>{ if (ok) onData(num, Object.assign({}, d, { _checked: true })); }); // unverified ka message chhod do
         break;
       }
@@ -677,10 +807,37 @@ function onData(num, d){
           if (Native.isForeground()) toast('💬 '+contactName(num)+': '+d.text);
           Native.notifyMessage(num, contactName(num), String(d.text).slice(0,300));
         }
-        if (current==='chatScreen' && chatWith===num) renderMsgs();
+        if (current==='chatScreen' && chatWith===num) { renderMsgs(); markSeen(num); }
         renderRecent();
       }
       send(num, { t:'ack', id:d.id });
+      break;
+    }
+    case 'ginfo': case 'ginfoack': case 'gmsg': case 'gack': case 'gseen': case 'gdel': case 'gdelack': case 'gleave': case 'gleaveack': {
+      if ((d.t === 'gmsg' || d.t === 'ginfo') && VERIFY_REQUIRED && !d._checked) { isTrusted(num).then(ok=>{ if (ok) onGroupData(num, Object.assign({}, d, { _checked:true })); }); break; }
+      onGroupData(num, d); break;
+    }
+    case 'fstart': case 'fready': case 'fno': case 'fchunk': case 'fend': case 'fdone': {
+      if (d.t === 'fstart' && VERIFY_REQUIRED && !d._checked) { isTrusted(num).then(ok=>{ if (ok) onFileData(num, Object.assign({}, d, { _checked:true })); }); break; }
+      onFileData(num, d); break;
+    }
+    case 'seen': {
+      if (!Array.isArray(d.ids)) break;
+      const msgs = getMsgs(num); let ch = false;
+      msgs.forEach(m=>{ if (m.from === 'me' && d.ids.includes(m.id) && !m.seen) { m.seen = true; m.ok = true; ch = true; } });
+      if (ch) { saveMsgs(num, msgs); if (current==='chatScreen' && chatWith===num) renderMsgs(); }
+      break;
+    }
+    case 'del': {
+      const msgs = getMsgs(num), m = msgs.find(x=>x.id === d.id && x.from === 'them');
+      if (m && !m.deleted) { Object.assign(m, { deleted:true, text:'', thumb:'' }); saveMsgs(num, msgs); if (current==='chatScreen' && chatWith===num) renderMsgs(); }
+      if (inFiles[d.id]) { delete inFiles[d.id]; store.set('inF', inFiles); if (Native.fileAbort) Native.fileAbort(d.id); }
+      send(num, { t:'delack', id:d.id });
+      break;
+    }
+    case 'delack': {
+      const msgs = getMsgs(num), m = msgs.find(x=>x.id === d.id);
+      if (m && m.delPending) { m.delPending = false; saveMsgs(num, msgs); }
       break;
     }
     case 'ack': {
@@ -722,42 +879,59 @@ function flushPending(onlyNum){
 
 function renderRecent(){
   const el = $('recentList'); if (!el) return;
-  const nums = Object.keys(contacts).sort((a,b)=>(contacts[b].ts||0)-(contacts[a].ts||0));
+  const gl = Object.values(groups).filter(g=>g && g.id);
+  const nums = Object.keys(contacts).concat(gl.map(g=>g.id)).sort((a,b)=>((contacts[b]||groups[b]||{}).ts||0)-((contacts[a]||groups[a]||{}).ts||0));
   if (!nums.length) { el.innerHTML = '<div class="empty">Abhi koi chat ya call nahi.<br>Upar number daal kar shuru karein.</div>'; return; }
   el.innerHTML = nums.map(n=>{
+    if (groups[n]) { const g = groups[n];
+      return '<div class="item" data-gid="'+n+'"><div class="avatar grp">👥</div><div class="meta"><div class="name">'+esc(g.name)+(g.unread?'<span class="badge">'+g.unread+'</span>':'')+'</div><div class="last">'+esc(g.last||'')+'</div></div><div class="time">'+(g.ts?fmtTime(g.ts):'')+'</div></div>'; }
     const c = contacts[n];
-    return '<div class="item" data-num="'+n+'"><div class="avatar">'+esc(initials(c.name))+'</div><div class="meta"><div class="name">'+esc(c.name)+(c.unread?'<span class="badge">'+c.unread+'</span>':'')+'</div><div class="last">'+esc(c.name!==n?n+' · ':'')+esc(c.last||'')+'</div></div><div class="time">'+(c.ts?fmtTime(c.ts):'')+'</div></div>';
+    return '<div class="item" data-num="'+n+'">'+avHtml(n, c.name)+'<div class="meta"><div class="name">'+esc(c.name)+(c.unread?'<span class="badge">'+c.unread+'</span>':'')+'</div><div class="last">'+esc(c.name!==n?n+' · ':'')+esc(c.last||'')+'</div></div><div class="time">'+(c.ts?fmtTime(c.ts):'')+'</div></div>';
   }).join('');
-  el.querySelectorAll('.item').forEach(it=>it.onclick=()=>openChat(it.dataset.num));
+  el.querySelectorAll('.item').forEach(it=>it.onclick=()=>it.dataset.gid ? openGroup(it.dataset.gid) : openChat(it.dataset.num));
 }
 
 // ================= Chat screen =================
 function openChat(num){
-  chatWith = num;
+  chatWith = num; chatGroup = null;
+  ['chatVoice', 'chatVideo', 'attachBtn'].forEach(id=>$(id).style.display = '');
+  $('chatInfo').style.display = 'none';
   Native.clearNotif(num);
   const c = touchContact(num);
   c.unread = 0; saveContacts(); renderRecent();
   $('chatTitle').textContent = c.name + vTag(num);
-  $('chatAvatar').textContent = initials(c.name);
+  setAv($('chatAvatar'), num, c.name); loadDp(num, true);
   $('chatSub').textContent = num;
   show('chatScreen');
   renderMsgs();
   const conn = getConn(num);
   if (conn && conn.open) $('chatSub').textContent = 'Online';
+  setTimeout(()=>markSeen(num), 200);
 }
 
 function renderMsgs(){
+  if (chatGroup) return renderGroupMsgs();
   const msgs = getMsgs(chatWith);
   const el = $('msgs');
   el.innerHTML = msgs.length ? msgs.map(m=>{
     if (m.from==='sys') return '<div class="sys">'+esc(m.text)+' · '+fmtTime(m.ts)+'</div>';
-    return '<div class="msg '+(m.from==='me'?'me':'them')+'">'+esc(m.text)+'<div class="t">'+fmtTime(m.ts)+(m.from==='me'?(m.ok?' ✓✓':' 🕓'):'')+'</div></div>';
+    if (m.deleted) return '<div class="msg del '+(m.from==='me'?'me':'them')+'" data-mid="'+esc(m.id)+'">🚫 '+(m.from==='me'?'Aapne ye message hata diya':'Ye message hata diya gaya')+'<div class="t">'+fmtTime(m.ts)+'</div></div>';
+    if (m.kind==='file') return fileBubble(m);
+    return '<div class="msg '+(m.from==='me'?'me':'them')+'" data-mid="'+esc(m.id)+'">'+esc(m.text)+'<div class="t">'+fmtTime(m.ts)+(m.from==='me'?' '+tick(m):'')+'</div></div>';
   }).join('') : '<div class="sys">Pehla message bhejein 👋</div>';
   el.scrollTop = el.scrollHeight;
+  el.onclick = e=>{
+    if (el._longPressed && Date.now() - el._longPressed < 800) return;
+    const b = e.target && e.target.closest ? e.target.closest('[data-fid]') : null; if (!b) return;
+    const m = getMsgs(chatWith).find(x=>x.id === b.dataset.fid); if (!m) return;
+    if (m.uri && Native.fileOpen) Native.fileOpen(m.uri, m.mime);
+    else if (m.from === 'me' && !m.ok && !outFiles[m.id]) attachFile();
+  };
 }
 
 function sendMsg(){
   const text = $('msgInput').value.trim();
+  if (text && chatGroup) { $('msgInput').value = ''; return sendGroupMsg(text); }
   if (!text || !chatWith) return;
   $('msgInput').value = '';
   const m = { id: uid(), from:'me', text, ts: Date.now(), ok:false };
@@ -765,6 +939,754 @@ function sendMsg(){
   touchContact(chatWith, null, 'Aap: '+text);
   renderMsgs();
   if (!send(chatWith, { t:'msg', id:m.id, text, ts:m.ts, name:me.name })) getConn(chatWith);
+}
+
+// ================= DP (profile photo) =================
+// Firebase dp/<number> me chhoti photo (~30 KB); phone me cache (6 ghante; chat/call par taaza), taaki baar-baar download na ho
+let dpCache = store.get('dpc', {});        // num -> { img, at }
+const dpLoading = {};
+let dpRerender = null;
+function dpOf(num){
+  const c = dpCache[num];
+  if (!c || Date.now() - c.at > 6*3600*1000) loadDp(num);
+  return c && c.img ? c.img : '';
+}
+async function loadDp(num, force){
+  if (!HAS_FB || dpLoading[num] || !validNum(num)) return;
+  const c = dpCache[num];
+  if (!force && c && Date.now() - c.at < 6*3600*1000) return;
+  dpLoading[num] = true;
+  try {
+    const d = await fb('dp/' + num + '.json');
+    const img = d && typeof d.img === 'string' && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(d.img) ? d.img : '';
+    const changed = (c && c.img || '') !== img;
+    dpCache[num] = { img, at: Date.now() };
+    const keys = Object.keys(dpCache);
+    if (keys.length > 80) keys.sort((a,b)=>dpCache[a].at - dpCache[b].at).slice(0, keys.length - 80).forEach(k=>delete dpCache[k]);
+    store.set('dpc', dpCache);
+    if (changed) { clearTimeout(dpRerender); dpRerender = setTimeout(refreshAvatars, 300); }
+  } catch(e) {} finally { dpLoading[num] = false; }
+}
+/** Avatar: DP ho to photo, warna pehla akshar */
+function avHtml(num, name, style){
+  const img = dpOf(num);
+  return img ? '<div class="avatar dp" style="background-image:url(' + img + ');' + (style||'') + '"></div>'
+             : '<div class="avatar" style="' + (style||'') + '">' + esc(initials(name)) + '</div>';
+}
+function setAv(el, num, name){
+  if (!el) return;
+  const img = dpOf(num);
+  if (img) { el.classList.add('dp'); el.style.backgroundImage = 'url(' + img + ')'; el.textContent = initials(name); }
+  else { el.classList.remove('dp'); el.style.backgroundImage = ''; el.textContent = initials(name); }
+}
+function refreshAvatars(){
+  const safe = f=>{ try { f(); } catch(e) { console.log('avatar:', e && e.message); } };
+  safe(()=>{ if (current === 'chatScreen' && chatWith) setAv($('chatAvatar'), chatWith, contactName(chatWith)); });
+  safe(()=>{ if (current === 'callScreen' && call.num) setAv($('callAvatar'), call.num, contactName(call.num)); });
+  safe(()=>{ if (me) { setAv($('dpPreview'), me.num, me.name); setAv($('myStatusAv'), me.num, me.name); } });
+  safe(renderRecent); safe(renderContacts); safe(renderStatusList);
+}
+async function setMyDp(){
+  if (!HAS_AUTH || !me) return toast('DP ke liye login zaroori hai');
+  if (VERIFY_REQUIRED && !verifiedSet.has(me.num)) return toast('Pehle number verify karein');
+  const f = await pickFile('image/*'); if (!f) return;
+  $('dpMsg').textContent = 'Photo lag rahi hai…';
+  try {
+    const r = await compressImage(f, 256, 40*1024, true);
+    let img = thumbOf(r.canvas, 256, 0.8); if (img.length > 58000) img = thumbOf(r.canvas, 200, 0.7);
+    await fb('dp/' + me.num + '.json', { method:'PUT', body: JSON.stringify({ img, ts: { '.sv':'timestamp' } }) }, true);
+    dpCache[me.num] = { img, at: Date.now() }; store.set('dpc', dpCache);
+    refreshAvatars(); $('dpMsg').textContent = '✅ DP lag gayi';
+  } catch(e) { $('dpMsg').textContent = 'DP nahi lagi. Internet check karein.'; }
+}
+async function delMyDp(){
+  if (!HAS_AUTH || !me) return;
+  try { await fb('dp/' + me.num + '.json', { method:'DELETE' }, true); } catch(e) {}
+  dpCache[me.num] = { img:'', at: Date.now() }; store.set('dpc', dpCache); refreshAvatars(); $('dpMsg').textContent = 'DP hata di';
+}
+
+// ================= Status: text + photo (Firebase, 24 ghante) =================
+const DAY = 24*3600*1000;
+const ST_COLORS = ['#0A7CFF', '#1fb760', '#e8590c', '#ae3ec9', '#e03131', '#1b1f29', '#c2255c'];
+let stSeen = store.get('stSeen', {});     // "num/sid" -> 1
+let stFeed = {};                           // num -> [ {sid, type, text, bg, ts, img?} ]
+let stMine = [];
+let seMode = 'text', seBg = ST_COLORS[0], seBlob = null, seImgData = '';
+function sidNew(){ return (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).toLowerCase(); }
+function timeAgo(ts){ const m = Math.floor((Date.now() - ts) / 60000); return m < 1 ? 'abhi' : m < 60 ? m + ' min pehle' : Math.floor(m/60) + ' ghante pehle'; }
+async function fetchStatus(num){
+  try {
+    const d = await fb('status/' + num + '.json') || {};
+    return Object.keys(d).map(sid=>Object.assign({ sid }, d[sid])).filter(s=>s && s.ts > Date.now() - DAY).sort((a,b)=>a.ts - b.ts);
+  } catch(e) { return null; }
+}
+/** Jinke status dekhne hain: verified contacts + jinse baat hui */
+function statusPeople(){
+  const set = new Set();
+  phoneContacts.forEach(c=>{ if (onAppNum(c.num)) set.add(c.num); });
+  Object.keys(contacts).forEach(n=>{ if (onAppNum(n)) set.add(n); });
+  if (me) set.delete(me.num);
+  return [...set].slice(0, 150);
+}
+let stLoading = false;
+async function loadStatuses(){
+  if (!HAS_FB || !me || stLoading) return;
+  stLoading = true;
+  try {
+    stMine = await fetchStatus(me.num) || stMine;
+    cleanupMine();
+    const people = statusPeople(), feed = {};
+    for (let i = 0; i < people.length; i += 8) {
+      await Promise.all(people.slice(i, i+8).map(async n=>{ const s = await fetchStatus(n); if (s && s.length) feed[n] = s; }));
+    }
+    stFeed = feed;
+    renderStatusList();
+  } finally { stLoading = false; }
+}
+/** Apne 24 ghante purane status mitao */
+async function cleanupMine(){
+  if (!HAS_AUTH || !me) return;
+  try {
+    const d = await fb('status/' + me.num + '.json') || {};
+    for (const sid of Object.keys(d)) if (!(d[sid] && d[sid].ts > Date.now() - DAY)) {
+      await fb('status/' + me.num + '/' + sid + '.json', { method:'DELETE' }, true).catch(()=>{});
+      await fb('statusImg/' + me.num + '/' + sid + '.json', { method:'DELETE' }, true).catch(()=>{});
+    }
+  } catch(e) {}
+}
+function renderStatusList(){
+  const el = $('statusList'); if (!el || !me) return;
+  setAv($('myStatusAv'), me.num, me.name);
+  $('myStatusRing').classList.toggle('seen', !stMine.length);
+  $('myStatusSub').textContent = stMine.length ? stMine.length + ' status · ' + timeAgo(stMine[stMine.length-1].ts) : 'Abhi koi status nahi';
+  const nums = Object.keys(stFeed).sort((a,b)=>{
+    const ua = stFeed[a].some(s=>!stSeen[a+'/'+s.sid]), ub = stFeed[b].some(s=>!stSeen[b+'/'+s.sid]);
+    return ua !== ub ? (ua ? -1 : 1) : stFeed[b][stFeed[b].length-1].ts - stFeed[a][stFeed[a].length-1].ts;
+  });
+  el.innerHTML = nums.length ? nums.map(n=>{
+    const list = stFeed[n], unseen = list.some(s=>!stSeen[n+'/'+s.sid]);
+    return '<div class="item" data-num="' + n + '"><span class="ring' + (unseen ? '' : ' seen') + '">' + avHtml(n, contactName(n)) + '</span><div class="meta"><div class="name">' + esc(contactName(n)) + vTag(n) + '</div><div class="last">' + timeAgo(list[list.length-1].ts) + '</div></div></div>';
+  }).join('') : '<div class="empty">Abhi kisi ka status nahi.<br>Upar se apna status daaliye 🙂</div>';
+  el.querySelectorAll('.item').forEach(it=>it.onclick=()=>openStatus(it.dataset.num));
+}
+
+// ----- Status likhna -----
+function openStatusEditor(mode){
+  if (!HAS_AUTH || !me) return toast('Status ke liye login zaroori hai');
+  if (VERIFY_REQUIRED && !verifiedSet.has(me.num)) return toast('Pehle number verify karein');
+  if (stMine.length >= 10) return toast('Ek saath 10 se zyada status nahi. Purana hatayein.');
+  seMode = mode; seBlob = null; seImgData = '';
+  $('seTitle').textContent = mode === 'text' ? 'Text status' : 'Photo status';
+  $('seText').style.display = mode === 'text' ? '' : 'none';
+  $('seImg').style.display = mode === 'photo' ? '' : 'none';
+  $('seCap').style.display = mode === 'photo' ? '' : 'none';
+  $('seColors').style.display = mode === 'text' ? '' : 'none';
+  $('seText').value = ''; $('seCap').value = '';
+  $('statusEdit').style.background = mode === 'text' ? seBg : '#000';
+  show('statusEdit');
+}
+async function pickStatusPhoto(){
+  const f = await pickFile('image/*'); if (!f) return;
+  toast('Photo taiyaar ho rahi hai…', 1500);
+  try {
+    const r = await compressImage(f, 1080, 200*1024);
+    let data = r.canvas.toDataURL('image/jpeg', 0.8), q = 0.7;
+    while (data.length > 280000 && q > 0.3) { data = r.canvas.toDataURL('image/jpeg', q); q -= 0.1; }
+    if (data.length > 290000) data = thumbOf(r.canvas, 720, 0.6);
+    openStatusEditor('photo');      // (ye seImgData khaali karta hai, isliye photo baad me rakho)
+    seImgData = data;
+    $('seImg').src = data;
+  } catch(e) { toast('Ye photo nahi khuli'); }
+}
+async function postStatus(){
+  const sid = sidNew();
+  const rec = { type: seMode, ts: { '.sv':'timestamp' } };
+  if (seMode === 'text') {
+    const t = $('seText').value.trim(); if (!t) return toast('Kuch likhiye');
+    rec.text = t.slice(0, 700); rec.bg = seBg;
+  } else {
+    if (!seImgData) return toast('Photo chuniye');
+    const cap = $('seCap').value.trim(); if (cap) rec.text = cap.slice(0, 300);
+  }
+  $('sePost').disabled = true;
+  try {
+    if (seMode === 'photo') await fb('statusImg/' + me.num + '/' + sid + '.json', { method:'PUT', body: JSON.stringify(seImgData) }, true);
+    await fb('status/' + me.num + '/' + sid + '.json', { method:'PUT', body: JSON.stringify(rec) }, true);
+    toast('✅ Status lag gaya');
+    show('homeScreen'); switchTab('tabStatus');
+    stMine = await fetchStatus(me.num) || stMine; renderStatusList();
+  } catch(e) { toast('Status nahi laga. Internet check karein.'); }
+  $('sePost').disabled = false;
+}
+
+// ----- Status dekhna -----
+let sv = { num:null, list:[], i:0, timer:null, t0:0 };
+const imgCache = {};
+async function openStatus(num){
+  const list = num === me.num ? stMine : (stFeed[num] || []);
+  if (!list.length) { if (num === me.num) openStatusEditor('text'); return; }
+  let start = list.findIndex(s=>!stSeen[num+'/'+s.sid]); if (start < 0 || num === me.num) start = 0;
+  sv = { num, list, i: start, timer:null, t0:0 };
+  $('svName').textContent = num === me.num ? 'Mera status' : contactName(num);
+  setAv($('svAv'), num, contactName(num));
+  $('svDel').style.display = num === me.num ? '' : 'none';
+  $('svBars').innerHTML = list.map(()=>'<span><i></i></span>').join('');
+  show('statusView');
+  showStatusItem();
+}
+async function showStatusItem(){
+  clearInterval(sv.timer);
+  const s = sv.list[sv.i]; if (!s) return closeStatus();
+  const bars = $('svBars').children || [];
+  for (let k = 0; k < bars.length; k++) { const i = bars[k].firstChild; if (i) i.style.width = k < sv.i ? '100%' : '0'; }
+  $('svTime').textContent = timeAgo(s.ts);
+  const body = $('svBody');
+  if (s.type === 'text') {
+    body.style.background = /^#[0-9a-fA-F]{6}$/.test(s.bg || '') ? s.bg : '#0A7CFF';
+    body.innerHTML = '<div class="stext">' + esc(s.text || '') + '</div>';
+  } else {
+    body.style.background = '#000';
+    body.innerHTML = '<div class="empty" style="color:#fff">Photo aa rahi hai…</div>';
+    const key = sv.num + '/' + s.sid;
+    let img = imgCache[key];
+    if (!img) { try { img = await fb('statusImg/' + key + '.json'); } catch(e) {} if (typeof img === 'string' && /^data:image\/jpeg;base64,/.test(img)) imgCache[key] = img; else img = ''; }
+    if (sv.list[sv.i] !== s) return;
+    body.innerHTML = (img ? '<img src="' + img + '">' : '<div class="empty" style="color:#fff">Photo nahi khuli</div>') + (s.text ? '<div class="scap">' + esc(s.text) + '</div>' : '');
+  }
+  if (sv.num !== me.num) { stSeen[sv.num + '/' + s.sid] = 1; store.set('stSeen', stSeen); }
+  sv.t0 = Date.now();
+  const dur = s.type === 'text' ? 5000 : 6000;
+  sv.timer = setInterval(()=>{
+    const p = Math.min(1, (Date.now() - sv.t0) / dur);
+    const i = bars[sv.i] && bars[sv.i].firstChild; if (i) i.style.width = (p*100) + '%';
+    if (p >= 1) { clearInterval(sv.timer); sv.i++; showStatusItem(); }
+  }, 100);
+}
+function closeStatus(){ clearInterval(sv.timer); show('homeScreen'); switchTab('tabStatus'); renderStatusList(); }
+async function deleteMyStatus(){
+  const s = sv.list[sv.i]; if (!s) return;
+  clearInterval(sv.timer);
+  try {
+    await fb('status/' + me.num + '/' + s.sid + '.json', { method:'DELETE' }, true);
+    await fb('statusImg/' + me.num + '/' + s.sid + '.json', { method:'DELETE' }, true).catch(()=>{});
+  } catch(e) { return toast('Nahi hata. Internet check karein.'); }
+  stMine = stMine.filter(x=>x.sid !== s.sid); toast('Status hata diya'); closeStatus();
+}
+
+// ================= Chat files: photo / video / PDF — seedha phone se phone (P2P) =================
+const CHUNK = 48 * 1024;
+const LIMIT = { image: 15*1024*1024, video: 50*1024*1024, pdf: 25*1024*1024 };
+const outFiles = {};            // id -> { num, blob, meta }  (bhejne wali, sirf app chalu rehne tak)
+const inFiles = store.get('inF', {});   // id -> { num, name, mime, size, got }  (aa rahi file, resume ke liye)
+const sendingNow = {};          // num -> id (ek waqt me ek file)
+const sleep = ms => new Promise(r=>setTimeout(r, ms));
+function fileKind(mime){ return /^image\//.test(mime) ? 'image' : /^video\//.test(mime) ? 'video' : mime === 'application/pdf' ? 'pdf' : 'other'; }
+function fmtSize(b){ return b > 1048576 ? (b/1048576).toFixed(1)+' MB' : Math.max(1, Math.round(b/1024))+' KB'; }
+function fileLabel(m){ return /^image\//.test(m.mime) ? '📷 Photo' : /^video\//.test(m.mime) ? '🎬 Video' : '📄 ' + m.name; }
+function safeThumb(t){ return typeof t === 'string' && t.length < 30000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(t) ? t : ''; }
+function toB64(u8){ let s = ''; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode.apply(null, u8.subarray(i, i + 8192)); return btoa(s); }
+
+function pickFile(accept){
+  return new Promise(res=>{ const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.onchange = ()=>res(i.files && i.files[0] || null); i.click(); });
+}
+function loadImg(file){
+  return new Promise((res, rej)=>{ const im = new Image(); im.onload = ()=>res(im); im.onerror = rej; im.src = URL.createObjectURL(file); });
+}
+/** Photo chhoti karo (WhatsApp jaisi): lambi side maxSide, size maxBytes tak */
+async function compressImage(file, maxSide, maxBytes, square){
+  const im = await loadImg(file);
+  let sw = im.naturalWidth, sh = im.naturalHeight, sx = 0, sy = 0;
+  if (square) { const s = Math.min(sw, sh); sx = (sw - s) / 2; sy = (sh - s) / 2; sw = sh = s; }
+  const k = Math.min(1, maxSide / Math.max(sw, sh));
+  const cv = document.createElement('canvas'); cv.width = Math.round(sw * k); cv.height = Math.round(sh * k);
+  cv.getContext('2d').drawImage(im, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+  let q = 0.85, blob;
+  do { blob = await new Promise(r=>cv.toBlob(r, 'image/jpeg', q)); q -= 0.1; } while (maxBytes && blob.size > maxBytes && q > 0.3);
+  return { blob, canvas: cv };
+}
+function thumbOf(canvas, side, q){
+  const k = Math.min(1, side / Math.max(canvas.width, canvas.height));
+  const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(canvas.width * k)); c.height = Math.max(1, Math.round(canvas.height * k));
+  c.getContext('2d').drawImage(canvas, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', q || 0.6);
+}
+
+async function attachFile(){
+  if (!chatWith) return;
+  const num = chatWith;
+  const f = await pickFile('image/*,video/*,application/pdf');
+  if (!f) return;
+  const mime = f.type || (/\.pdf$/i.test(f.name) ? 'application/pdf' : '');
+  const kind = fileKind(mime);
+  if (kind === 'other') return toast('Sirf photo, video ya PDF bhej sakte hain');
+  let blob = f, name = f.name || 'file', thumb = '', outMime = mime;
+  if (kind === 'image') {
+    toast('Photo taiyaar ho rahi hai…', 1500);
+    try { const r = await compressImage(f, 1600, 700*1024); blob = r.blob; thumb = thumbOf(r.canvas, 180); name = name.replace(/\.[^.]+$/, '') + '.jpg'; outMime = 'image/jpeg'; } catch(e) {}
+  }
+  if (blob.size > LIMIT[kind]) return toast((kind === 'video' ? 'Video' : 'File') + ' bahut badi hai (zyada se zyada ' + fmtSize(LIMIT[kind]) + ')', 3500);
+  if (kind === 'video' && blob.size > 15*1024*1024) toast('Badi video hai — WiFi par jaldi jayegi', 3000);
+  const m = { id: uid() + uid(), from:'me', kind:'file', name, mime: outMime, size: blob.size, thumb, ts: Date.now(), ok:false, prog:0 };
+  const msgs = getMsgs(num); msgs.push(m); saveMsgs(num, msgs);
+  outFiles[m.id] = { num, blob, meta: m };
+  touchContact(num, null, 'Aap: ' + fileLabel(m));
+  if (current === 'chatScreen' && chatWith === num) renderMsgs();
+  pumpFiles(num);
+}
+
+/** Agli file shuru karo (saamne wala "fready" bolega tab tukde jayenge) */
+function pumpFiles(num){
+  if (sendingNow[num]) return;
+  const id = Object.keys(outFiles).find(k=>outFiles[k].num === num);
+  if (!id) return;
+  const c = conns[num];
+  if (!c || !c.open) { getConn(num); return; }
+  const o = outFiles[id], m = o.meta;
+  sendingNow[num] = id;
+  send(num, { t:'fstart', id, name:m.name, mime:m.mime, size:m.size, thumb:m.thumb, ts:m.ts, from:me.name });
+  clearTimeout(o.wait);
+  o.wait = setTimeout(()=>{ if (sendingNow[num] === id && !o.streaming) sendingNow[num] = null; }, 25000);
+}
+
+async function streamFile(num, id, from){
+  const o = outFiles[id], c = conns[num];
+  if (!o || !c || o.streaming) return;
+  clearTimeout(o.wait); o.streaming = true;
+  let off = Math.max(0, Math.min(from || 0, o.blob.size));
+  try {
+    while (off < o.blob.size) {
+      if (!c.open || conns[num] !== c) throw new Error('band');
+      const dc = c.dataChannel;
+      while (dc && dc.bufferedAmount > 2*1024*1024) { await sleep(40); if (!c.open) throw new Error('band'); }
+      const buf = new Uint8Array(await o.blob.slice(off, off + CHUNK).arrayBuffer());
+      c.send({ t:'fchunk', id, o: off, d: buf });
+      off += buf.length;
+      setProg(num, id, Math.floor(off * 100 / o.blob.size));
+    }
+    c.send({ t:'fend', id });
+  } catch(e) { /* net toota: dobara judne par wahin se aage */ }
+  o.streaming = false;
+  if (sendingNow[num] === id) sendingNow[num] = null;
+}
+
+let progSave = 0;
+function setProg(num, id, pct){
+  const el = document.querySelector ? document.querySelector('[data-fid="'+id+'"]') : null;
+  if (el) { const bar = el.querySelector('.fbar i'); if (bar) bar.style.width = pct + '%'; const t = el.querySelector('.fpct'); if (t) t.textContent = pct + '% · '; }
+  if (Date.now() - progSave > 1500 || pct >= 100) {
+    progSave = Date.now();
+    const msgs = getMsgs(num), m = msgs.find(x=>x.id === id);
+    if (m) { m.prog = pct; saveMsgs(num, msgs); }
+  }
+}
+function updateFileMsg(num, id, patch){
+  const msgs = getMsgs(num), m = msgs.find(x=>x.id === id);
+  if (m) { Object.assign(m, patch); saveMsgs(num, msgs); }
+  if (current === 'chatScreen' && chatWith === num) renderMsgs();
+  return m;
+}
+
+/** Aane wali file ke sandesh */
+function onFileData(num, d){
+  switch (d.t) {
+    case 'fstart': {
+      const mime = String(d.mime || ''), kind = fileKind(mime), size = +d.size || 0;
+      if (kind === 'other' || size <= 0 || size > (LIMIT[kind] || 0) + 1024 || typeof d.id !== 'string' || d.id.length > 40) { send(num, { t:'fno', id:d.id }); return; }
+      const name = String(d.name || 'file').slice(0, 80);
+      const msgs = getMsgs(num); let m = msgs.find(x=>x.id === d.id);
+      if (m && m.uri) { send(num, { t:'fdone', id:d.id }); return; }   // pehle hi aa chuki
+      if (!m) {
+        m = { id:d.id, from:'them', kind:'file', name, mime, size, thumb: safeThumb(d.thumb), ts: d.ts || Date.now(), prog:0, uri:'' };
+        msgs.push(m); saveMsgs(num, msgs);
+        touchContact(num, d.from, fileLabel(m));
+        if (current === 'chatScreen' && chatWith === num) renderMsgs();
+      }
+      const have = parseInt(Native.fileBegin ? Native.fileBegin(d.id) : '0', 10) || 0;
+      inFiles[d.id] = { num, name, mime, size, got: have }; store.set('inF', inFiles);
+      send(num, { t:'fready', id:d.id, from: have });
+      return;
+    }
+    case 'fready': if (outFiles[d.id] && outFiles[d.id].num === num) streamFile(num, d.id, +d.from || 0); return;
+    case 'fno': if (outFiles[d.id]) { delete outFiles[d.id]; sendingNow[num] = null; updateFileMsg(num, d.id, { fail:true }); pumpFiles(num); } return;
+    case 'fchunk': {
+      const inf = inFiles[d.id];
+      if (!inf || inf.num !== num || d.o !== inf.got) return;   // galat kram: chhodo (sender dobara bhejega)
+      const u8 = d.d instanceof Uint8Array ? d.d : new Uint8Array(d.d);
+      if (inf.got + u8.length > inf.size) return;
+      if (Native.fileAppend && !Native.fileAppend(d.id, toB64(u8))) { send(num, { t:'fno', id:d.id }); delete inFiles[d.id]; return; }
+      inf.got += u8.length;
+      setProg(num, d.id, Math.floor(inf.got * 100 / inf.size));
+      return;
+    }
+    case 'fend': {
+      const inf = inFiles[d.id];
+      if (!inf || inf.num !== num) return;
+      if (inf.got < inf.size) { send(num, { t:'fready', id:d.id, from: inf.got }); return; }   // kuch chhoota: wahin se
+      const uri = Native.fileFinish ? Native.fileFinish(d.id, inf.name, inf.mime) : 'mem:' + d.id;
+      delete inFiles[d.id]; store.set('inF', inFiles);
+      const m = updateFileMsg(num, d.id, { uri: uri || '', prog:100, fail: !uri });
+      send(num, { t:'fdone', id:d.id });
+      markSeen(num);
+      if (m) {
+        const viewing = current === 'chatScreen' && chatWith === num && Native.isForeground();
+        if (!viewing) {
+          const ct = contacts[num]; if (ct) { ct.unread = (ct.unread || 0) + 1; saveContacts(); renderRecent(); }
+          Native.notifyMessage(num, contactName(num), fileLabel(m));
+        }
+      }
+      return;
+    }
+    case 'fdone': {
+      if (outFiles[d.id]) { clearTimeout(outFiles[d.id].wait); delete outFiles[d.id]; }
+      if (sendingNow[num] === d.id) sendingNow[num] = null;
+      updateFileMsg(num, d.id, { ok:true, prog:100 });
+      pumpFiles(num);
+      return;
+    }
+  }
+}
+
+function fileBubble(m){
+  const mine = m.from === 'me', img = /^image\//.test(m.mime);
+  const done = mine ? m.ok : !!m.uri;
+  const lost = mine && !m.ok && !outFiles[m.id] && !m.fail;    // app band hui: file yaad nahi
+  let state = '';
+  if (m.fail || lost) state = '❌ nahi gaya' + (mine ? ' — dobara bhejein' : '') + ' · ';
+  else if (!done) state = '<span class="fpct">' + (m.prog ? m.prog + '% · ' : (mine ? '🕓 ' : '⬇️ ')) + '</span>';
+  const body = img && m.thumb ? '<img class="fthumb" src="' + esc(safeThumb(m.thumb)) + '">'
+    : '<div class="fcard">' + (/^video\//.test(m.mime) ? '🎬' : img ? '📷' : '📄') + ' <b>' + esc(m.name) + '</b><br><small>' + fmtSize(m.size) + (done && !mine ? ' · dabakar kholein' : '') + '</small></div>';
+  const bar = (!done && !m.fail && !lost) ? '<div class="fbar"><i style="width:' + (m.prog || 0) + '%"></i></div>' : '';
+  return '<div class="msg file ' + (mine ? 'me' : 'them') + '" data-fid="' + esc(m.id) + '" data-mid="' + esc(m.id) + '">' + body + bar
+    + '<div class="t">' + state + fmtTime(m.ts) + (mine && m.ok ? ' ' + tick(m) : '') + '</div></div>';
+}
+
+// ================= Blue tick (padh liya) =================
+function tick(m){ return m.seen ? '<span class="tk seen">✓✓</span>' : m.ok ? '<span class="tk">✓✓</span>' : '<span class="tk">🕓</span>'; }
+/** Chat khuli hai aur app saamne: saamne wale ko batao ki message padh liye */
+function markSeen(num){
+  if (!num || !Native.isForeground() || current !== 'chatScreen' || chatWith !== num) return;
+  const msgs = getMsgs(num); let changed = false;
+  msgs.forEach(m=>{ if (m.from === 'them' && !m.seenAt) { m.seenAt = Date.now(); changed = true; } });
+  if (changed) saveMsgs(num, msgs);
+  sendSeen(num);
+}
+function sendSeen(num){
+  const msgs = getMsgs(num);
+  const ids = msgs.filter(m=>m.from === 'them' && m.seenAt && !m.seenSent && !m.deleted).map(m=>m.id).slice(-200);
+  if (!ids.length) return;
+  if (send(num, { t:'seen', ids })) { msgs.forEach(m=>{ if (ids.includes(m.id)) m.seenSent = true; }); saveMsgs(num, msgs); }
+}
+document.addEventListener && document.addEventListener('visibilitychange', ()=>{ if (chatWith) setTimeout(()=>markSeen(chatWith), 300); });
+
+// ================= Message hatana: mere liye / sabke liye =================
+const DEL_ALL_MS = 24*3600*1000;   // apna message 24 ghante tak sabke liye hata sakte hain
+function msgMenu(id){
+  if (chatGroup) return groupMenu(id);
+  const num = chatWith; if (!num) return;
+  const m = getMsgs(num).find(x=>x.id === id); if (!m || m.from === 'sys') return;
+  const btns = [];
+  if (!m.deleted && m.text && m.kind !== 'file') btns.push({ label:'📋 Copy', cls:'ghost', fn:()=>{ try { navigator.clipboard.writeText(m.text); toast('Copy ho gaya'); } catch(e) { toast('Copy nahi hua'); } } });
+  btns.push({ label:'🗑️ Mere liye hatao', cls:'ghost', fn:()=>deleteForMe(num, id) });
+  if (m.from === 'me' && !m.deleted && Date.now() - m.ts < DEL_ALL_MS) btns.push({ label:'🚫 Sabke liye hatao', cls:'red', fn:()=>deleteForAll(num, id) });
+  btns.push({ label:'Band karein', cls:'ghost', fn:()=>{} });
+  modal('Message', m.deleted ? 'Hata hua message' : (m.kind === 'file' ? fileLabel(m) : String(m.text).slice(0, 80)), btns);
+}
+function deleteForMe(num, id){
+  saveMsgs(num, getMsgs(num).filter(x=>x.id !== id));
+  if (outFiles[id]) { delete outFiles[id]; if (sendingNow[num] === id) sendingNow[num] = null; }
+  if (current === 'chatScreen' && chatWith === num) renderMsgs();
+  toast('Hata diya (sirf aapke phone se)');
+}
+function deleteForAll(num, id){
+  const msgs = getMsgs(num), m = msgs.find(x=>x.id === id); if (!m) return;
+  Object.assign(m, { deleted:true, text:'', thumb:'', delPending:true });
+  saveMsgs(num, msgs);
+  if (outFiles[id]) { delete outFiles[id]; if (sendingNow[num] === id) sendingNow[num] = null; }
+  if (!send(num, { t:'del', id })) getConn(num);   // offline: judte hi jayega
+  if (current === 'chatScreen' && chatWith === num) renderMsgs();
+  toast('Sabke liye hata diya');
+}
+function flushDeletes(num){
+  getMsgs(num).filter(m=>m.from === 'me' && m.delPending).forEach(m=>send(num, { t:'del', id:m.id }));
+}
+// Lamba dabao = menu
+(function(){
+  let timer = null, sx = 0, sy = 0, el = null;
+  const box = ()=>$('msgs');
+  const clear = ()=>{ clearTimeout(timer); timer = null; if (el && el.classList) el.classList.remove('hold'); el = null; };
+  const b = box(); if (!b || !b.addEventListener) return;
+  b.addEventListener('pointerdown', e=>{
+    const t = e.target && e.target.closest ? e.target.closest('[data-mid]') : null; if (!t) return;
+    sx = e.clientX; sy = e.clientY; el = t; t.classList.add('hold');
+    timer = setTimeout(()=>{ const id = t.dataset.mid; clear(); b._longPressed = Date.now(); msgMenu(id); }, 550);
+  });
+  b.addEventListener('pointermove', e=>{ if (timer && (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10)) clear(); });
+  b.addEventListener('pointerup', clear); b.addEventListener('pointercancel', clear);
+  b.addEventListener('contextmenu', e=>{ e.preventDefault && e.preventDefault(); });
+})();
+
+// ================= GROUP (seedha phone se phone) =================
+// Group ki jaankari (naam, admin, members) har member ke phone me; badlav sirf admin karta hai.
+// Message har member ko alag-alag P2P jaata hai; jo offline hai use judte hi milta hai (bhejne wale ki app chalu ho tab).
+let groups = store.get('groups', {});
+let chatGroup = null;
+const GMAX = 50;
+function saveGroups(){ store.set('groups', groups); }
+function gMsgs(gid){ return store.get('gm_' + gid, []); }
+function saveGMsgs(gid, list){ store.set('gm_' + gid, list.slice(-500)); }
+function isGid(g){ return typeof g === 'string' && /^g[a-z0-9]{8,30}$/.test(g); }
+function others(g){ return (g.members || []).filter(n=>n !== me.num); }
+function gSys(gid, text){ const l = gMsgs(gid); l.push({ id: uid(), from:'sys', text, ts: Date.now() }); saveGMsgs(gid, l); }
+function touchGroup(gid, last, unread){
+  const g = groups[gid]; if (!g) return;
+  if (last !== undefined) { g.last = last; g.ts = Date.now(); }
+  if (unread) g.unread = (g.unread || 0) + 1;
+  saveGroups(); renderRecent();
+}
+function gInfo(g){ return { id:g.id, name:g.name, admin:g.admin, members:g.members.slice(), ver:g.ver }; }
+
+/** Admin: group bana kar / badal kar sabko batao */
+function bumpGroup(g){ g.ver = (g.ver || 0) + 1; g.ackVer = g.ackVer || {}; saveGroups(); others(g).concat(g.removedPend || []).forEach(n=>{ if (!sendGroupStuff(n)) getConn(n); }); }
+
+function createGroup(name, members){
+  const gid = 'g' + (uid() + uid()).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
+  const g = { id: gid, name, admin: me.num, members: [me.num].concat(members), ver: 0, ackVer: {}, ts: Date.now(), last: 'Group bana', unread: 0 };
+  groups[gid] = g; saveGroups();
+  gSys(gid, 'Aapne group "' + name + '" banaya');
+  bumpGroup(g);
+  return gid;
+}
+
+/** Ek member ke liye jo bhi baaki hai (jaankari, message, seen, delete) bhejo */
+function sendGroupStuff(num){
+  const c = conns[num]; if (!c || !c.open) return false;
+  Object.values(groups).forEach(g=>{
+    if (!g || !me) return;
+    const member = (g.members || []).includes(num);
+    // admin: nayi jaankari
+    if (((g.admin === me.num && !g.left) || g.handover) && (member || (g.removedPend || []).includes(num)) && ((g.ackVer || {})[num] || -1) < g.ver) send(num, { t:'ginfo', g: gInfo(g) });
+    // maine group chhoda: admin ko batao
+    if (g.leavePend && num === g.admin) send(num, { t:'gleave', gid: g.id });
+    if (!member || g.left || g.removed) return;
+    const list = gMsgs(g.id);
+    list.filter(m=>m.from === me.num && !m.deleted && !(m.ok || {})[num]).slice(-100)
+        .forEach(m=>send(num, { t:'gmsg', gid: g.id, id: m.id, text: m.text, ts: m.ts, name: me.name }));
+    list.filter(m=>m.from === me.num && m.deleted && (m.delPend || []).includes(num)).forEach(m=>send(num, { t:'gdel', gid: g.id, id: m.id }));
+    const seenIds = list.filter(m=>m.from === num && m.seenAt && !m.seenSent).map(m=>m.id);
+    if (seenIds.length && send(num, { t:'gseen', gid: g.id, ids: seenIds })) { list.forEach(m=>{ if (seenIds.includes(m.id)) m.seenSent = true; }); saveGMsgs(g.id, list); }
+  });
+  return true;
+}
+function pushGroup(g){ others(g).forEach(n=>{ if (!sendGroupStuff(n)) getConn(n); }); }
+
+function sendGroupMsg(text){
+  const g = groups[chatGroup]; if (!g || g.left || g.removed) return toast('Aap is group me nahi hain');
+  const m = { id: uid() + uid(), from: me.num, text: text.slice(0, 4000), ts: Date.now(), ok: {}, seen: {} };
+  const list = gMsgs(g.id); list.push(m); saveGMsgs(g.id, list);
+  touchGroup(g.id, 'Aap: ' + text);
+  renderMsgs(); pushGroup(g);
+}
+
+/** Aane wale group sandesh */
+function onGroupData(num, d){
+  if (!isGid(d.gid || (d.g && d.g.id))) return;
+  switch (d.t) {
+    case 'ginfo': {
+      const n = d.g || {};
+      const ok = validNum(n.admin) && Array.isArray(n.members) && n.members.length <= GMAX && n.members.every(validNum) && typeof n.name === 'string' && n.name.length <= 50 && Number.isInteger(n.ver);
+      if (!ok) return;
+      let g = groups[n.id];
+      if (!g) {
+        if (num !== n.admin || !n.members.includes(me.num)) return;     // sirf admin hi naya group bata sakta hai
+        g = groups[n.id] = { id:n.id, name:n.name, admin:n.admin, members:n.members, ver:n.ver, ts:Date.now(), last:'Aapko group me joda gaya', unread:1 };
+        gSys(n.id, contactName(num) + ' ne aapko group "' + n.name + '" me joda');
+        Native.notifyMessage(num, n.name, contactName(num) + ' ne aapko group me joda');
+      } else {
+        if (num !== g.admin || n.ver <= g.ver) { send(num, { t:'ginfoack', gid:n.id, ver:g.ver }); return; }
+        const added = n.members.filter(x=>!g.members.includes(x)), gone = g.members.filter(x=>!n.members.includes(x));
+        if (n.name !== g.name) gSys(n.id, 'Group ka naam ab "' + n.name + '" hai');
+        added.forEach(x=>gSys(n.id, (x === me.num ? 'Aapko' : contactName(x)) + ' joda gaya'));
+        gone.forEach(x=>gSys(n.id, (x === me.num ? 'Aapko' : contactName(x)) + ' group se hata'));
+        if (n.admin !== g.admin) gSys(n.id, contactName(n.admin) + ' ab admin hain');
+        Object.assign(g, { name:n.name, admin:n.admin, members:n.members, ver:n.ver });
+        if (!n.members.includes(me.num)) { g.removed = true; g.leavePend = false; }
+        else g.removed = false;
+        g.ts = Date.now();
+      }
+      saveGroups(); renderRecent();
+      if (chatGroup === n.id) { openGroup(n.id); }
+      send(num, { t:'ginfoack', gid:n.id, ver:n.ver });
+      sendGroupStuff(num);
+      return;
+    }
+    case 'ginfoack': { const g = groups[d.gid]; if (g && (g.admin === me.num || g.handover)) { g.ackVer = g.ackVer || {}; g.ackVer[num] = d.ver; if (g.removedPend) g.removedPend = g.removedPend.filter(x=>x !== num || d.ver < g.ver); saveGroups(); } return; }
+    case 'gmsg': {
+      const g = groups[d.gid];
+      if (!g || g.removed || g.left || !g.members.includes(num) || typeof d.id !== 'string') return;   // jaankari nahi / member nahi: chhodo (dobara aayega)
+      const list = gMsgs(g.id);
+      if (!list.find(m=>m.id === d.id)) {
+        const text = String(d.text || '').slice(0, 4000);
+        list.push({ id:d.id, from:num, text, ts: d.ts || Date.now() }); saveGMsgs(g.id, list);
+        const viewing = current === 'chatScreen' && chatGroup === g.id && Native.isForeground();
+        touchGroup(g.id, contactName(num) + ': ' + text, !viewing);
+        if (!viewing) Native.notifyMessage(num, g.name, contactName(num) + ': ' + text.slice(0, 200));
+        if (chatGroup === g.id && current === 'chatScreen') { renderMsgs(); markGroupSeen(g.id); }
+      }
+      send(num, { t:'gack', gid:g.id, id:d.id });
+      return;
+    }
+    case 'gack': case 'gseen': {
+      const list = gMsgs(d.gid); let ch = false;
+      const ids = d.t === 'gack' ? [d.id] : (Array.isArray(d.ids) ? d.ids : []);
+      list.forEach(m=>{ if (m.from === me.num && ids.includes(m.id)) { m.ok = m.ok || {}; m.seen = m.seen || {}; if (!m.ok[num]) { m.ok[num] = 1; ch = true; } if (d.t === 'gseen' && !m.seen[num]) { m.seen[num] = 1; ch = true; } } });
+      if (ch) { saveGMsgs(d.gid, list); if (chatGroup === d.gid && current === 'chatScreen') renderMsgs(); }
+      return;
+    }
+    case 'gdel': {
+      const list = gMsgs(d.gid), m = list.find(x=>x.id === d.id && x.from === num);
+      if (m && !m.deleted) { Object.assign(m, { deleted:true, text:'' }); saveGMsgs(d.gid, list); if (chatGroup === d.gid && current === 'chatScreen') renderMsgs(); }
+      send(num, { t:'gdelack', gid:d.gid, id:d.id });
+      return;
+    }
+    case 'gdelack': { const list = gMsgs(d.gid), m = list.find(x=>x.id === d.id); if (m && m.delPend) { m.delPend = m.delPend.filter(x=>x !== num); saveGMsgs(d.gid, list); } return; }
+    case 'gleave': {
+      const g = groups[d.gid];
+      if (!g || g.admin !== me.num || !g.members.includes(num)) { send(num, { t:'gleaveack', gid:d.gid }); return; }
+      g.members = g.members.filter(x=>x !== num);
+      gSys(g.id, contactName(num) + ' ne group chhoda');
+      send(num, { t:'gleaveack', gid:g.id });
+      bumpGroup(g); touchGroup(g.id, contactName(num) + ' ne group chhoda');
+      if (chatGroup === g.id) openGroup(g.id);
+      return;
+    }
+    case 'gleaveack': { const g = groups[d.gid]; if (g && g.leavePend) { g.leavePend = false; saveGroups(); } return; }
+  }
+}
+
+function markGroupSeen(gid){
+  if (!Native.isForeground() || current !== 'chatScreen' || chatGroup !== gid) return;
+  const list = gMsgs(gid); const senders = new Set();
+  list.forEach(m=>{ if (m.from !== me.num && m.from !== 'sys' && !m.seenAt) { m.seenAt = Date.now(); senders.add(m.from); } });
+  saveGMsgs(gid, list);
+  senders.forEach(n=>{ if (!sendGroupStuff(n)) getConn(n); });
+}
+
+function gTick(g, m){
+  const o = others(g); if (!o.length) return '<span class="tk">✓</span>';
+  const ok = o.filter(n=>(m.ok || {})[n]).length, seen = o.filter(n=>(m.seen || {})[n]).length;
+  if (seen === o.length) return '<span class="tk seen">✓✓</span>';
+  if (ok === o.length) return '<span class="tk">✓✓</span>';
+  return '<span class="tk">' + (ok ? ok + '/' + o.length + ' ✓' : '🕓') + '</span>';
+}
+
+function openGroup(gid){
+  const g = groups[gid]; if (!g) return;
+  chatGroup = gid; chatWith = null;
+  g.unread = 0; saveGroups(); renderRecent();
+  $('chatTitle').textContent = '👥 ' + g.name;
+  const av = $('chatAvatar'); av.classList.remove('dp'); av.style.backgroundImage = ''; av.textContent = '👥';
+  $('chatSub').textContent = g.removed ? 'Aap is group me nahi hain' : g.left ? 'Aapne group chhod diya' : g.members.map(n=>n === me.num ? 'Aap' : contactName(n)).slice(0, 5).join(', ') + (g.members.length > 5 ? '…' : '');
+  ['chatVoice', 'chatVideo', 'attachBtn'].forEach(id=>$(id).style.display = 'none');
+  $('chatInfo').style.display = '';
+  show('chatScreen');
+  renderMsgs();
+  if (!g.left && !g.removed) { pushGroup(g); setTimeout(()=>markGroupSeen(gid), 200); }
+}
+
+function renderGroupMsgs(){
+  const g = groups[chatGroup], list = gMsgs(chatGroup), el = $('msgs');
+  el.innerHTML = list.length ? list.map(m=>{
+    if (m.from === 'sys') return '<div class="sys">' + esc(m.text) + ' · ' + fmtTime(m.ts) + '</div>';
+    const mine = m.from === me.num;
+    if (m.deleted) return '<div class="msg del ' + (mine ? 'me' : 'them') + '" data-mid="' + esc(m.id) + '">🚫 ' + (mine ? 'Aapne ye message hata diya' : 'Ye message hata diya gaya') + '<div class="t">' + fmtTime(m.ts) + '</div></div>';
+    return '<div class="msg ' + (mine ? 'me' : 'them') + '" data-mid="' + esc(m.id) + '">' + (mine ? '' : '<div class="gname">' + esc(contactName(m.from)) + '</div>') + esc(m.text)
+      + '<div class="t">' + fmtTime(m.ts) + (mine ? ' ' + gTick(g, m) : '') + '</div></div>';
+  }).join('') : '<div class="sys">Group me pehla message bhejein 👋</div>';
+  el.scrollTop = el.scrollHeight;
+}
+
+function groupMenu(id){
+  const g = groups[chatGroup]; const m = gMsgs(chatGroup).find(x=>x.id === id); if (!g || !m || m.from === 'sys') return;
+  const btns = [];
+  if (!m.deleted && m.text) btns.push({ label:'📋 Copy', cls:'ghost', fn:()=>{ try { navigator.clipboard.writeText(m.text); toast('Copy ho gaya'); } catch(e) {} } });
+  btns.push({ label:'🗑️ Mere liye hatao', cls:'ghost', fn:()=>{ saveGMsgs(g.id, gMsgs(g.id).filter(x=>x.id !== id)); renderMsgs(); } });
+  if (m.from === me.num && !m.deleted && Date.now() - m.ts < DEL_ALL_MS && !g.left && !g.removed) btns.push({ label:'🚫 Sabke liye hatao', cls:'red', fn:()=>{
+    const list = gMsgs(g.id), x = list.find(y=>y.id === id); Object.assign(x, { deleted:true, text:'', delPend: others(g) }); saveGMsgs(g.id, list); renderMsgs(); pushGroup(g); toast('Sabke liye hata diya');
+  } });
+  btns.push({ label:'Band karein', cls:'ghost', fn:()=>{} });
+  modal('Message', m.deleted ? 'Hata hua message' : String(m.text).slice(0, 80), btns);
+}
+
+// ----- group banana / member jodna -----
+let gpMode = 'new', gpSel = new Set();
+function openGroupPick(mode){
+  gpMode = mode; gpSel = new Set();
+  const g = groups[chatGroup];
+  $('gpTitle').textContent = mode === 'new' ? 'Naya group' : 'Member jodein';
+  $('gpNameBox').style.display = mode === 'new' ? '' : 'none';
+  $('gpDone').textContent = mode === 'new' ? 'Group banayein' : 'Jodein';
+  $('gpName').value = ''; $('gpMsg').textContent = '';
+  const people = new Map();
+  phoneContacts.forEach(c=>{ if (onAppNum(c.num)) people.set(c.num, c.name); });
+  Object.keys(contacts).forEach(n=>{ if (onAppNum(n) && !people.has(n)) people.set(n, contacts[n].name); });
+  people.delete(me.num);
+  if (mode === 'add' && g) g.members.forEach(n=>people.delete(n));
+  const arr = [...people].sort((a,b)=>a[1].localeCompare(b[1]));
+  $('gpList').innerHTML = arr.length ? arr.map(([n, name])=>'<div class="item" data-num="' + n + '">' + avHtml(n, name) + '<div class="meta"><div class="name">' + esc(name) + vTag(n) + '</div><div class="last">' + n + '</div></div><span class="chk">✓</span></div>').join('')
+    : '<div class="empty">Koi MeraCall wala contact nahi mila.<br>Pehle Contacts me logon ko invite karein.</div>';
+  $('gpList').querySelectorAll('.item').forEach(it=>it.onclick=()=>{
+    const n = it.dataset.num;
+    if (gpSel.has(n)) gpSel.delete(n); else { if (gpSel.size + (g && mode === 'add' ? g.members.length : 1) >= GMAX) return toast('Ek group me ' + GMAX + ' tak log'); gpSel.add(n); }
+    it.classList.toggle('sel', gpSel.has(n));
+    $('gpCount').textContent = gpSel.size ? gpSel.size + ' chune' : 'Member chuniye (sirf MeraCall wale)';
+  });
+  show('groupPick');
+}
+function groupPickDone(){
+  if (!gpSel.size) return $('gpMsg').textContent = 'Kam se kam ek member chuniye';
+  if (gpMode === 'new') {
+    const name = $('gpName').value.trim(); if (!name) return $('gpMsg').textContent = 'Group ka naam likhiye';
+    const gid = createGroup(name.slice(0, 50), [...gpSel]);
+    openGroup(gid);
+  } else {
+    const g = groups[chatGroup]; if (!g || g.admin !== me.num) return;
+    gpSel.forEach(n=>{ if (!g.members.includes(n)) { g.members.push(n); gSys(g.id, contactName(n) + ' ko joda'); } });
+    bumpGroup(g); openGroup(g.id);
+  }
+}
+
+// ----- group jaankari -----
+function openGroupInfo(){
+  const g = groups[chatGroup]; if (!g) return;
+  const admin = g.admin === me.num && !g.left && !g.removed;
+  $('giName').textContent = g.name;
+  $('giSub').textContent = g.members.length + ' members · Admin: ' + (g.admin === me.num ? 'Aap' : contactName(g.admin));
+  $('giAdminBox').style.display = admin ? '' : 'none';
+  $('giRename').value = g.name;
+  $('giLeave').style.display = (g.left || g.removed) ? 'none' : '';
+  $('giMembers').innerHTML = g.members.map(n=>'<div class="item" data-num="' + n + '">' + avHtml(n, n === me.num ? me.name : contactName(n)) + '<div class="meta"><div class="name">' + esc(n === me.num ? 'Aap' : contactName(n)) + (n === g.admin ? ' <span class="badge" style="background:#7048e8">admin</span>' : '') + '</div><div class="last">' + n + '</div></div>'
+    + (admin && n !== me.num ? '<button class="mini" data-act="rm" style="color:var(--red)">✖</button>' : '') + '</div>').join('');
+  $('giMembers').querySelectorAll('.item').forEach(it=>it.onclick=e=>{
+    const n = it.dataset.num;
+    if (e.target && e.target.dataset && e.target.dataset.act === 'rm') {
+      modal('Hatayein?', contactName(n) + ' ko group se hatana hai?', [
+        { label:'Haan, hatao', cls:'red', fn:()=>{ g.members = g.members.filter(x=>x !== n); g.removedPend = (g.removedPend || []).concat(n); gSys(g.id, contactName(n) + ' ko hataya'); bumpGroup(g); openGroupInfo(); } },
+        { label:'Nahi', cls:'ghost', fn:()=>{} } ]);
+    } else if (n !== me.num) { chatGroup = null; openChat(n); }
+  });
+  show('groupInfo');
+}
+function leaveGroup(){
+  const g = groups[chatGroup]; if (!g) return;
+  modal('Group chhodein?', '"' + g.name + '" se nikal jayenge. Purane message aapke phone me rahenge.', [
+    { label:'Haan, chhodo', cls:'red', fn:()=>{
+      if (g.admin === me.num) {
+        const rest = others(g);
+        if (rest.length) { g.admin = rest[0]; g.members = rest; g.handover = true; bumpGroup(g); }   // naya admin; sabko khabar pahunchane tak purana admin batata rahega
+      } else { g.leavePend = true; if (!sendGroupStuff(g.admin)) getConn(g.admin); }
+      g.left = true; gSys(g.id, 'Aapne group chhoda'); saveGroups(); renderRecent(); openGroup(g.id);
+    } },
+    { label:'Nahi', cls:'ghost', fn:()=>{} } ]);
 }
 
 function logCall(num, text){
@@ -784,7 +1706,7 @@ async function getMedia(video){
 
 function callUI(num, video, status, incoming){
   const c = contacts[num] || { name:num };
-  $('callAvatar').textContent = initials(c.name);
+  setAv($('callAvatar'), num, c.name); loadDp(num, true);
   $('callName').textContent = c.name;
   $('callNumber').textContent = (video ? '🎥 Video call · ' : '📞 Voice call · ') + num + (verifiedSet.has(num) ? '  ✅' : '');
   if (incoming && HAS_FB && !verifiedSet.has(num)) {
@@ -829,7 +1751,7 @@ async function startCall(num, video){
 async function onIncomingCall(mc){
   const num = mc.peer.replace(PREFIX, '');
   const meta = mc.metadata || {};
-  if (VERIFY_REQUIRED && !verifiedSet.has(num) && !(await isTrusted(num))) {
+  if (VERIFY_REQUIRED && !(await isTrusted(num, true))) {
     try{ mc.close(); }catch(e){}
     getConn(num); setTimeout(()=>send(num,{t:'reject'}), 800);
     return; // unverified number: ghanti bhi nahi bajegi
@@ -1009,20 +1931,47 @@ $('setupBtn').onclick = async ()=>{
 $('dialVoice').onclick = ()=> withApp($('dialNum').value, n=>startCall(n, false));
 $('dialVideo').onclick = ()=> withApp($('dialNum').value, n=>startCall(n, true));
 $('dialChat').onclick = ()=> withApp($('dialNum').value, n=>openChat(n));
+function switchTab(id){
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on', x.dataset.tab === id));
+  document.querySelectorAll('.tabpane').forEach(p=>p.classList.toggle('on', p.id === id));
+  if (id === 'tabStatus') { renderStatusList(); loadStatuses(); }
+}
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on', x===b));
   document.querySelectorAll('.tabpane').forEach(p=>p.classList.toggle('on', p.id===b.dataset.tab));
   if (b.dataset.tab==='tabContacts') { loadPhoneContacts(); refreshRegistry(); }
+  if (b.dataset.tab==='tabStatus') { renderStatusList(); loadStatuses(); }
 });
 $('contactSearch').addEventListener('input', renderContacts);
 $('contactsPermBtn').onclick = ()=> Native.askContacts && Native.askContacts();
 $('inviteAnyBtn').onclick = ()=> showInvite(null);
 $('verifyBtn').onclick = startVerify;
 $('modal').onclick = e=>{ if (e.target.id==='modal') $('modal').classList.remove('on'); };
-$('chatBack').onclick = ()=> { chatWith = null; show('homeScreen'); renderRecent(); };
+$('chatBack').onclick = ()=> { chatWith = null; chatGroup = null; show('homeScreen'); renderRecent(); };
+$('newGroupBtn').onclick = ()=>{ if (VERIFY_REQUIRED && !verifiedSet.has(me.num)) return toast('Pehle number verify karein'); openGroupPick('new'); };
+$('gpBack').onclick = ()=> chatGroup ? openGroupInfo() : (show('homeScreen'), switchTab('tabContacts'));
+$('gpDone').onclick = groupPickDone;
+$('chatInfo').onclick = openGroupInfo;
+$('giBack').onclick = ()=> openGroup(chatGroup);
+$('giLeave').onclick = leaveGroup;
+$('giAddBtn').onclick = ()=> openGroupPick('add');
+$('giRenameBtn').onclick = ()=>{ const g = groups[chatGroup], n = $('giRename').value.trim(); if (!g || !n || g.admin !== me.num) return; g.name = n.slice(0, 50); gSys(g.id, 'Aapne naam "' + g.name + '" rakha'); bumpGroup(g); openGroupInfo(); };
 $('chatVoice').onclick = ()=> startCall(chatWith, false);
 $('chatVideo').onclick = ()=> startCall(chatWith, true);
 $('sendBtn').onclick = sendMsg;
+$('attachBtn').onclick = attachFile;
+$('dpSetBtn').onclick = setMyDp;
+$('dpDelBtn').onclick = delMyDp;
+$('stTextBtn').onclick = ()=>openStatusEditor('text');
+$('stPhotoBtn').onclick = pickStatusPhoto;
+$('myStatusRow').onclick = ()=>openStatus(me.num);
+$('seBack').onclick = ()=>{ show('homeScreen'); switchTab('tabStatus'); };
+$('sePost').onclick = postStatus;
+$('seColors').innerHTML = ST_COLORS.map(c=>'<b data-c="'+c+'" style="background:'+c+'"></b>').join('');
+$('seColors').onclick = e=>{ const c = e.target && e.target.dataset ? e.target.dataset.c : null; if (c) { seBg = c; $('statusEdit').style.background = c; } };
+$('svBack').onclick = closeStatus;
+$('svDel').onclick = deleteMyStatus;
+$('svBody').onclick = e=>{ const x = e.clientX || 0, w = window.innerWidth || 400; clearInterval(sv.timer); if (x < w/3) sv.i = Math.max(0, sv.i - 1); else sv.i++; showStatusItem(); };
 $('msgInput').addEventListener('keydown', e=>{ if (e.key==='Enter') sendMsg(); });
 // Utha lo / Kaato: dabao ya upar kheencho (normal phone jaisa)
 function swipeBtn(el, fn){
@@ -1049,6 +1998,7 @@ $('speakerBtn').onclick = toggleSpeaker;
 $('settingsBtn').onclick = ()=>{
   $('setName').value = me.name;
   $('aboutVer').textContent = 'Version ' + (cfg.version || '1.0');
+  setAv($('dpPreview'), me.num, me.name); loadDp(me.num, true);
   const t = store.get('turn', {}) || {};
   $('turnUrl').value = t.url||''; $('turnUser').value = t.user||''; $('turnPass').value = t.pass||'';
   if (cfg.turnUrl) $('turnInfo').textContent = '✅ App me TURN pehle se laga hai — kuch bharne ki zaroorat nahi. Khali chhodiye. Sirf apna alag TURN ho to yahan daalein.';
@@ -1075,8 +2025,12 @@ window.nativeAction = function(act, arg){
 window.onAndroidBack = function(){
   if ($('modal').classList.contains('on')) { $('modal').classList.remove('on'); return true; }
   if (current === 'callScreen') return true;
-  if (current === 'chatScreen' || current === 'settingsScreen') { chatWith=null; show('homeScreen'); renderRecent(); return true; }
+  if (current === 'chatScreen' || current === 'settingsScreen') { chatWith=null; chatGroup=null; show('homeScreen'); renderRecent(); return true; }
   if (current === 'resetScreen') { show('setupScreen'); return true; }
+  if (current === 'statusView') { closeStatus(); return true; }
+  if (current === 'groupInfo') { openGroup(chatGroup); return true; }
+  if (current === 'groupPick') { $('gpBack').onclick(); return true; }
+  if (current === 'statusEdit') { show('homeScreen'); switchTab('tabStatus'); return true; }
   return false;
 };
 
@@ -1091,7 +2045,7 @@ function boot(){
   show('homeScreen');
   renderRecent();
   startPeer();
-  registerMe();
+  checkAccount().then(ok=>{ if (ok && me) { registerMe(); loadDp(me.num); } });
   renderVerify();
   loadPhoneContacts();
   refreshRegistry();
@@ -1133,6 +2087,7 @@ $('chPassBtn').onclick = async ()=>{
 async function gate(){
   show('verifyScreen');
   $('vNum').textContent = me.num.replace(/(\d{5})(\d{5})/, '$1 $2');
+  if (!(await checkAccount())) return;
   registerMe();
   try { const u = await fb('users/'+me.num+'.json'); if (u) noteUser(me.num, u); } catch(e) {}
   if (verifiedSet.has(me.num)) boot();
@@ -1145,7 +2100,57 @@ $('gateCheckBtn').onclick = async ()=>{
   else $('gateMsg').textContent = 'Abhi verify nahi hua. WhatsApp me message Send hua? PC wala bot chalu hona chahiye. 1 minute baad dobara dabaiye.';
 };
 $('gateLogoutBtn').onclick = ()=> $('logoutBtn').onclick();
+// ----- Account zinda hai? (admin ne Firebase se hataya/band kiya to turant logout) -----
+function forceLogout(msg){
+  try { if (peer) peer.destroy(); } catch(e) {}
+  peer = null;
+  if (call.state !== 'idle') { try { endCall(null, false); } catch(e) {} }
+  localStorage.removeItem('me'); localStorage.removeItem('auth'); authTok = null; authDead = false; me = null;
+  verifiedSet.clear(); store.set('verifiedSet', []);
+  show('setupScreen'); $('setupErr').textContent = msg;
+}
+let checking = false;
+async function checkAccount(){
+  if (!HAS_AUTH || !me || checking) return true;
+  checking = true;
+  try {
+    if (!authTok) { forceLogout('Suraksha ke liye dobara login kijiye (number + password).'); return false; }
+    const t = await idToken();
+    if (!t) {
+      if (authDead) { forceLogout('Aapka MeraCall account hata ya band kar diya gaya hai. Dobara login karein ya admin se baat karein.'); return false; }
+      return true;   // internet nahi: baad me
+    }
+    try {
+      const j = await idp('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + API_KEY, { idToken: t });
+      const u = j.users && j.users[0];
+      if (!u || u.disabled) { forceLogout('Aapka MeraCall account hata ya band kar diya gaya hai. Dobara login karein ya admin se baat karein.'); return false; }
+    } catch(e) {
+      if (/USER_NOT_FOUND|USER_DISABLED|INVALID_ID_TOKEN|TOKEN_EXPIRED/.test(e.message)) { forceLogout('Aapka MeraCall account hata ya band kar diya gaya hai. Dobara login karein ya admin se baat karein.'); return false; }
+      return true;
+    }
+    // ✅ hata diya gaya? to dobara verify
+    if (VERIFY_REQUIRED) {
+      try { const d = await fb('users/'+me.num+'.json'); noteUser(me.num, d || {}); } catch(e) { return true; }
+      if (!verifiedSet.has(me.num) && current !== 'verifyScreen' && call.state === 'idle') {
+        try { if (peer) peer.destroy(); } catch(e) {}
+        peer = null; gate(); return false;
+      }
+    }
+    return true;
+  } finally { checking = false; }
+}
+setInterval(()=>{ if (me) checkAccount(); }, 10*60*1000);
+window.addEventListener('online', ()=>{ if (me) checkAccount(); });
 setInterval(()=>{ if (me) refreshRegistry(); }, 5*60*1000);
+// Atki hui file: har 30 second dobara koshish
+setInterval(()=>{ if (!me) return; new Set(Object.values(outFiles).map(o=>o.num)).forEach(n=>pumpFiles(n)); }, 30000);
+// Group: jinhe kuch baaki hai unse jodo (har 45 second)
+setInterval(()=>{ if (!me) return; const need = new Set();
+  Object.values(groups).forEach(g=>{ if (!g) return; const list = gMsgs(g.id);
+    others(g).forEach(n=>{ if (list.some(m=>m.from === me.num && !m.deleted && !(m.ok||{})[n]) || (g.admin === me.num && ((g.ackVer||{})[n] || -1) < g.ver)) need.add(n); });
+    (g.removedPend || []).forEach(n=>need.add(n)); if (g.leavePend) need.add(g.admin);
+    if (g.handover) g.members.forEach(n=>{ if (((g.ackVer||{})[n] || -1) < g.ver) need.add(n); }); });
+  need.forEach(n=>{ if (!sendGroupStuff(n)) getConn(n); }); }, 45000);
 // Connection zinda rakho
 setInterval(()=>{ if (me && peer && !peer.destroyed && peer.disconnected) peer.reconnect(); }, 15000);
 
