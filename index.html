@@ -45,15 +45,39 @@
   .composer input{flex:1;border-radius:24px;font-size:16px;padding:11px 16px}
   .composer button{width:48px;height:48px;border-radius:50%;border:none;background:var(--blue);color:#fff;font-size:20px}
   /* call */
-  #callScreen{background:#10141c;color:#fff}
+  #callScreen{background:linear-gradient(160deg,#0b1d3a,#24124a,#062b2e,#0b1d3a);background-size:400% 400%;animation:bgmove 14s ease infinite;color:#fff;overflow:hidden}
+  @keyframes bgmove{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+  .avaWrap{position:relative;width:124px;height:124px;margin:0 auto 20px}
+  .ripple{position:absolute;inset:0;border-radius:50%;border:2px solid #7cc0ff;opacity:0;pointer-events:none}
+  #callScreen.ringing .ripple{animation:ripple 2.4s ease-out infinite}
+  #callScreen.ringing .ripple.r2{animation-delay:.8s} #callScreen.ringing .ripple.r3{animation-delay:1.6s}
+  @keyframes ripple{0%{transform:scale(1);opacity:.85}100%{transform:scale(2.4);opacity:0}}
+  #callScreen.active .avaWrap .big{animation:breathe 3s ease-in-out infinite}
+  @keyframes breathe{50%{box-shadow:0 0 0 16px #ffffff12}}
+  .dots::after{content:'';display:inline-block;width:1.2em;text-align:left;animation:dots 1.4s steps(4) infinite}
+  @keyframes dots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
+  .swipe{position:absolute;bottom:46px;left:0;right:0;display:flex;justify-content:space-around;align-items:flex-end;z-index:4;padding:0 20px}
+  .sw{display:flex;flex-direction:column;align-items:center;gap:9px;font-size:14px;font-weight:600;touch-action:none;user-select:none;-webkit-user-select:none}
+  .sw .ball{width:76px;height:76px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:32px;transition:transform .35s cubic-bezier(.3,1.6,.5,1)}
+  .sw.acc .ball{background:#1fb760;animation:bounce 1.5s ease-in-out infinite,glowG 1.5s ease-out infinite}
+  .sw.rej .ball{background:#ec3b3b;animation:wobble 3s ease-in-out infinite,glowR 3s ease-out infinite}
+  .sw .ball.drag{animation:none;transition:none}
+  @keyframes bounce{0%,100%{transform:translateY(0)}35%{transform:translateY(-16px)}55%{transform:translateY(-4px)}70%{transform:translateY(-9px)}}
+  @keyframes wobble{0%,78%,100%{transform:rotate(0)}83%{transform:rotate(-14deg)}88%{transform:rotate(14deg)}93%{transform:rotate(-7deg)}}
+  @keyframes glowG{0%{box-shadow:0 0 0 0 #1fb760aa}100%{box-shadow:0 0 0 22px #1fb76000}}
+  @keyframes glowR{0%,70%{box-shadow:0 0 0 0 #ec3b3b88}100%{box-shadow:0 0 0 18px #ec3b3b00}}
+  .upHint{font-size:12px;font-weight:400;opacity:.75;animation:floaty 1.5s ease-in-out infinite}
+  @keyframes floaty{50%{transform:translateY(-6px);opacity:1}}
+  .rot{display:inline-block;transform:rotate(135deg)}
   #remoteVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#10141c}
   #localVideo{position:absolute;right:14px;top:14px;width:30%;max-width:150px;border-radius:12px;object-fit:cover;z-index:3;border:2px solid #fff3;transform:scaleX(-1)}
   .callInfo{position:relative;z-index:2;text-align:center;padding-top:70px}
-  .callInfo .big{width:110px;height:110px;font-size:44px;margin:0 auto 16px;background:#2a3346;color:#fff}
-  .callInfo h2{margin:0;font-size:26px}
+  .callInfo .big{position:relative;z-index:2;width:124px;height:124px;font-size:50px;margin:0;background:linear-gradient(135deg,#3a7bff,#9b5cff);color:#fff;box-shadow:0 0 0 6px #ffffff14;transition:box-shadow .3s}
+  .callInfo h2{margin:0;font-size:28px;letter-spacing:.3px}
   .callInfo p{margin:8px 0;opacity:.8}
   .callBtns{position:absolute;bottom:40px;left:0;right:0;display:flex;justify-content:center;gap:18px;z-index:4;flex-wrap:wrap;padding:0 10px}
-  .cbtn{width:62px;height:62px;border-radius:50%;border:none;font-size:24px;background:#ffffff26;color:#fff;cursor:pointer}
+  .cbtn{width:62px;height:62px;border-radius:50%;border:1px solid #ffffff22;font-size:24px;background:#ffffff1f;color:#fff;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:transform .15s,background .2s}
+  .cbtn:active{transform:scale(.88)}
   .cbtn.off{background:#fff;color:#222}
   .cbtn.red{background:var(--red)} .cbtn.green{background:var(--green)}
   .cbtn small{display:block;font-size:10px}
@@ -173,14 +197,14 @@
   <video id="localVideo" autoplay playsinline muted></video>
   <audio id="remoteAudio" autoplay></audio>
   <div class="callInfo" id="callInfo">
-    <div class="avatar big" id="callAvatar"></div>
+    <div class="avaWrap"><span class="ripple"></span><span class="ripple r2"></span><span class="ripple r3"></span><div class="avatar big" id="callAvatar"></div></div>
     <h2 id="callName"></h2>
     <p id="callNumber"></p>
     <p id="callStatus"></p>
   </div>
-  <div class="callBtns" id="incomingBtns">
-    <button class="cbtn red" id="rejectBtn">✖<small>Reject</small></button>
-    <button class="cbtn green" id="acceptBtn">✔<small>Utha lo</small></button>
+  <div class="swipe" id="incomingBtns">
+    <div class="sw rej" id="rejectBtn"><div class="ball"><span class="rot">📞</span></div>Kaato</div>
+    <div class="sw acc" id="acceptBtn"><div class="upHint">⌃ upar kheenchein</div><div class="ball">📞</div>Utha lo</div>
   </div>
   <div class="callBtns" id="activeBtns" style="display:none">
     <button class="cbtn" id="muteBtn">🎤<small>Mute</small></button>
@@ -203,7 +227,7 @@
     </div>
     <div class="card">
       <div style="font-weight:600">TURN server (optional)</div>
-      <p class="hint">Agar alag network (jaise Jio data ↔ Airtel data) par call connect nahi hoti, to yahan apna TURN server daalein. Free account metered.ca par banta hai.</p>
+      <p class="hint" id="turnInfo">Agar alag network (jaise Jio data ↔ Airtel data) par call connect nahi hoti, to yahan apna TURN server daalein. Free account metered.ca par banta hai.</p>
       <label>TURN URL</label><input id="turnUrl" placeholder="turn:standard.relay.metered.ca:80">
       <label>Username</label><input id="turnUser">
       <label>Password</label><input id="turnPass">
@@ -448,7 +472,9 @@ function iceServers(){
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun.cloudflare.com:3478' }
   ];
-  const t = store.get('turn', null);
+  // User ne Settings me apna TURN daala ho to wo, warna admin (Pankaj) ka APK me pehle se daala hua
+  let t = store.get('turn', null);
+  if (!(t && t.url) && cfg.turnUrl) t = { url: cfg.turnUrl, user: cfg.turnUser, pass: cfg.turnPass };
   if (t && t.url) {
     const base = t.url.replace(/^turns?:/, '').split('?')[0];
     list.push({ urls: [t.url, 'turn:'+base+'?transport=tcp'], username: t.user, credential: t.pass });
@@ -660,6 +686,8 @@ function callUI(num, video, status, incoming){
   $('remoteVideo').style.display = 'none';
   $('callInfo').style.display = '';
   ['muteBtn','camBtn','speakerBtn'].forEach(b=>$(b).classList.remove('off'));
+  $('callScreen').classList.remove('active'); $('callScreen').classList.add('ringing');
+  $('callStatus').classList.add('dots');
   show('callScreen');
 }
 
@@ -670,7 +698,7 @@ async function startCall(num, video){
   if (call.state !== 'idle') return;
   touchContact(num);
   Object.assign(call, { state:'outgoing', num, video, incoming:false, selfReject:false, muted:false, camOff:false, speaker:video, facing:'user' });
-  callUI(num, video, 'Call lag rahi hai…', false);
+  callUI(num, video, 'Call lag rahi hai', false);
   getConn(num);
   try { call.local = await getMedia(video); }
   catch(e){ endCall('Mic/Camera permission nahi mili', true); return; }
@@ -680,7 +708,7 @@ async function startCall(num, video){
   const mc = peer.call(PREFIX + num, call.local, { metadata: { video, name: me.name } });
   if (!mc) { endCall('Call nahi lag payi', true); return; }
   call.mc = mc;
-  $('callStatus').textContent = 'Ghanti baj rahi hai…';
+  $('callStatus').textContent = 'Ghanti baj rahi hai';
   wireMedia(mc);
   call.ringTimer = setTimeout(()=>{ if (call.state==='outgoing') { send(num,{t:'end'}); endCall('Kisi ne nahi uthaya', true); } }, 45000);
 }
@@ -696,7 +724,7 @@ function onIncomingCall(mc){
   }
   if (meta.name) touchContact(num, meta.name);
   Object.assign(call, { state:'ringing', num, video:!!meta.video, mc, incoming:true, selfReject:false, muted:false, camOff:false, speaker:!!meta.video, facing:'user' });
-  callUI(num, call.video, 'Aapko call aa rahi hai…', true);
+  callUI(num, call.video, 'Call aa rahi hai', true);
   if (IS_APP) Native.incomingCall(num, contactName(num), call.video); else playRing(true);
   getConn(num);
   wireMedia(mc);
@@ -707,7 +735,7 @@ async function acceptCall(){
   if (call.state !== 'ringing') return;
   Native.ring(false); playRing(false);
   $('incomingBtns').style.display='none'; $('activeBtns').style.display='flex';
-  $('callStatus').textContent = 'Jud raha hai…';
+  $('callStatus').textContent = 'Jud raha hai';
   try { call.local = await getMedia(call.video); }
   catch(e){ send(call.num,{t:'reject'}); call.selfReject = true; endCall('Mic/Camera permission nahi mili', true); return; }
   showLocal();
@@ -727,6 +755,8 @@ function wireMedia(mc){
     if (call.mc !== mc) return;
     clearTimeout(call.ringTimer);
     call.state = 'active';
+    $('callScreen').classList.remove('ringing'); $('callScreen').classList.add('active');
+    $('callStatus').classList.remove('dots');
     if (call.video) {
       const rv = $('remoteVideo'); rv.srcObject = remote; rv.style.display='block';
       $('callInfo').style.display='none';
@@ -771,6 +801,7 @@ function endCall(reason, notifyLocal, missed){
   stopLocal();
   $('remoteVideo').srcObject = null; $('remoteAudio').srcObject = null; $('localVideo').srcObject = null;
   call.state = 'idle'; call.mc = null;
+  $('callScreen').classList.remove('ringing'); $('callScreen').classList.remove('active'); $('callStatus').classList.remove('dots');
   if (wasActive) logCall(num, kind+' · '+fmtDur(dur));
   else if (missed && call.incoming) { logCall(num, 'Missed '+kind); Native.missedCall(num, contactName(num), call.video); }
   else if (call.selfReject) logCall(num, kind+' · aapne kaati');
@@ -874,8 +905,23 @@ $('chatVoice').onclick = ()=> startCall(chatWith, false);
 $('chatVideo').onclick = ()=> startCall(chatWith, true);
 $('sendBtn').onclick = sendMsg;
 $('msgInput').addEventListener('keydown', e=>{ if (e.key==='Enter') sendMsg(); });
-$('acceptBtn').onclick = acceptCall;
-$('rejectBtn').onclick = rejectCall;
+// Utha lo / Kaato: dabao ya upar kheencho (normal phone jaisa)
+function swipeBtn(el, fn){
+  const ball = el.querySelector ? el.querySelector('.ball') : null;
+  let y0 = null, moved = 0;
+  const reset = ()=>{ if (ball) { ball.classList.remove('drag'); ball.style.transform = ''; } y0 = null; };
+  el.addEventListener('pointerdown', e=>{ y0 = e.clientY; moved = 0; if (ball) ball.classList.add('drag'); try{ el.setPointerCapture(e.pointerId); }catch(x){} });
+  el.addEventListener('pointermove', e=>{
+    if (y0 === null) return;
+    const dy = Math.min(0, e.clientY - y0); moved = Math.max(moved, Math.abs(e.clientY - y0));
+    if (ball) ball.style.transform = 'translateY(' + dy + 'px) scale(' + (1 + Math.min(0.25, -dy/400)) + ')';
+    if (dy < -110) { reset(); fn(); }
+  });
+  el.addEventListener('pointerup', ()=>{ if (y0 === null) return; const tap = moved < 12; reset(); if (tap) fn(); });
+  el.addEventListener('pointercancel', reset);
+}
+swipeBtn($('acceptBtn'), acceptCall);
+swipeBtn($('rejectBtn'), rejectCall);
 $('endBtn').onclick = hangup;
 $('muteBtn').onclick = toggleMute;
 $('camBtn').onclick = toggleCam;
@@ -886,6 +932,7 @@ $('settingsBtn').onclick = ()=>{
   $('aboutVer').textContent = 'Version ' + (cfg.version || '1.0');
   const t = store.get('turn', {}) || {};
   $('turnUrl').value = t.url||''; $('turnUser').value = t.user||''; $('turnPass').value = t.pass||'';
+  if (cfg.turnUrl) $('turnInfo').textContent = '✅ App me TURN pehle se laga hai — kuch bharne ki zaroorat nahi. Khali chhodiye. Sirf apna alag TURN ho to yahan daalein.';
   show('settingsScreen');
 };
 $('settingsBack').onclick = ()=> show('homeScreen');
