@@ -118,6 +118,7 @@
       <div style="height:16px"></div>
       <button class="btn" id="setupBtn">Shuru karein</button>
       <p class="hint" id="setupErr" style="color:var(--red)"></p>
+      <button class="btn ghost" id="forgotBtn" style="display:none;background:none">🔑 Password bhool gaye?</button>
     </div>
     <p class="credit">Built by <b>Pankaj Jaiswal</b></p>
   </div>
@@ -174,6 +175,47 @@
       <div class="list" id="recentList"></div>
     </div>
     <p class="credit">MeraCall · Built by <b>Pankaj Jaiswal</b></p>
+  </div>
+</div>
+
+<!-- 1b. PASSWORD RESET (WhatsApp se) -->
+<div class="screen" id="resetScreen">
+  <header><button class="iconbtn" id="resetBack">←</button><h1>Password reset</h1></header>
+  <div class="content">
+    <div class="card">
+      <p class="hint" style="margin-top:0;font-size:14px">Naya password yahan daaliye. Phir WhatsApp se ek message bhejna hai — usi number ke WhatsApp se jo yahan daala hai.</p>
+      <label>Aapka number (10 ank)</label>
+      <input id="rNum" type="tel" inputmode="numeric" maxlength="10" placeholder="9876543210">
+      <label>Naya password (kam se kam 6 akshar)</label>
+      <input id="rPass" type="password" maxlength="40" autocomplete="new-password">
+      <label>Naya password dobara</label>
+      <input id="rPass2" type="password" maxlength="40" autocomplete="new-password">
+      <div style="height:14px"></div>
+      <button class="btn green" id="rSend">WhatsApp se reset karein</button>
+      <p class="hint" id="rMsg"></p>
+      <button class="btn" id="rLogin" style="display:none">Naye password se login karein</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2b. VERIFY (zaroori): WhatsApp se number verify kiye bina app nahi chalegi -->
+<div class="screen" id="verifyScreen">
+  <header><h1>📞 MeraCall</h1></header>
+  <div class="content">
+    <div class="card" style="text-align:center">
+      <div style="font-size:46px">✅</div>
+      <h2 style="margin:6px 0">Number verify karein</h2>
+      <div class="mynum" id="vNum" style="font-size:22px"></div>
+      <p class="hint" style="font-size:14px">Ye number sach me aapka hai, ye pakka karne ke liye WhatsApp se ek message bhejna hai. Iske bina call aur chat chalu nahi honge.</p>
+      <button class="btn green" id="gateVerifyBtn">WhatsApp se verify karein</button>
+      <p class="hint" id="gateHint" style="display:none;font-size:14px">WhatsApp me bas <b>Send</b> dabaiye, phir yahan wapas aaiye. 10 second me apne aap aage badh jayega.</p>
+      <div style="height:10px"></div>
+      <button class="btn ghost" id="gateCheckBtn">Maine bhej diya — check karo</button>
+      <p class="hint" id="gateMsg" style="color:var(--red)"></p>
+      <div style="height:6px"></div>
+      <button class="btn ghost" id="gateLogoutBtn" style="background:none">Ye mera number nahi — doosra number daalein</button>
+    </div>
+    <p class="credit">Built by <b>Pankaj Jaiswal</b></p>
   </div>
 </div>
 
@@ -238,6 +280,14 @@
       <label>Password</label><input id="turnPass">
       <div style="height:10px"></div>
       <button class="btn" id="saveTurn">Save &amp; restart</button>
+    </div>
+    <div class="card" id="chPassCard" style="display:none">
+      <div style="font-weight:600">Password badlein</div>
+      <label>Purana password</label><input id="oldPass" type="password" maxlength="40" autocomplete="current-password">
+      <label>Naya password (kam se kam 6 akshar)</label><input id="newPass" type="password" maxlength="40" autocomplete="new-password">
+      <div style="height:10px"></div>
+      <button class="btn" id="chPassBtn">Password badlein</button>
+      <p class="hint" id="chPassMsg"></p>
     </div>
     <div class="card" style="text-align:center">
       <div style="font-size:34px">📞</div>
@@ -350,11 +400,22 @@ let registered = new Set(store.get('registered', []));
 let verifiedSet = new Set(store.get('verifiedSet', []));
 const VERIFY_BOT = String(cfg.verifyBot || '').replace(/\D/g, '');
 function vTag(num){ return verifiedSet.has(num) ? ' ✅' : ''; }
+// Verify bot set hai to verification ZAROORI: unverified number na dikhega, na call/message kar payega
+const VERIFY_REQUIRED = HAS_AUTH && !!VERIFY_BOT;
+if (VERIFY_REQUIRED) registered = new Set([...registered].filter(n=>verifiedSet.has(n)));
+const onAppNum = n => VERIFY_REQUIRED ? verifiedSet.has(n) : (registered.has(n) || (contacts[n] && contacts[n].onApp));
 function noteUser(num, u){
   if (!u) return;
-  registered.add(num);
   if (u.verified) verifiedSet.add(num); else verifiedSet.delete(num);
+  if (!VERIFY_REQUIRED || u.verified) registered.add(num); else registered.delete(num);
   store.set('verifiedSet', [...verifiedSet]);
+  store.set('registered', [...registered]);
+}
+/** Ye number verified hai? (internet/Firebase na mile to rokte nahi) */
+async function isTrusted(num){
+  if (!VERIFY_REQUIRED || verifiedSet.has(num)) return true;
+  try { const u = await fb('users/'+num+'.json'); noteUser(num, u || {}); return verifiedSet.has(num); }
+  catch(e) { return true; }
 }
 // ----- Number verification (WhatsApp se, Pankaj ke bot ke through) -----
 function renderVerify(){
@@ -381,7 +442,7 @@ async function startVerify(){
     if (++tries > 40) { clearInterval(verifyPoll); return; }
     try {
       const u = await fb('users/'+me.num+'.json');
-      if (u && u.verified) { clearInterval(verifyPoll); noteUser(me.num, u); renderVerify(); $('verifyHint').style.display='none'; toast('✅ Aapka number verify ho gaya!', 3500); }
+      if (u && u.verified) { clearInterval(verifyPoll); noteUser(me.num, u); renderVerify(); $('verifyHint').style.display='none'; toast('✅ Aapka number verify ho gaya!', 3500); if (current === 'verifyScreen') boot(); }
     } catch(e) {}
   }, 5000);
 }
@@ -427,9 +488,9 @@ async function registerMe(){
 }
 // true = app hai, false = app nahi, null = pata nahi (internet/Firebase nahi)
 async function hasApp(num){
-  if (registered.has(num) || (contacts[num] && contacts[num].onApp)) return true;
+  if (onAppNum(num)) return true;
   if (!HAS_FB) return null;
-  try { const u = await fb('users/'+num+'.json'); if (u) { noteUser(num, u); store.set('registered',[...registered]); } return !!u; }
+  try { const u = await fb('users/'+num+'.json'); if (u) noteUser(num, u); return VERIFY_REQUIRED ? verifiedSet.has(num) : !!u; }
   catch(e) { return null; }
 }
 
@@ -489,7 +550,7 @@ function renderContacts(){
   // app wale: phone contacts + jinse pehle baat hui
   const map = {};
   phoneContacts.forEach(c=>{ if (registered.has(c.num)) map[c.num] = c; });
-  Object.keys(contacts).forEach(n=>{ if (!map[n] && (registered.has(n) || contacts[n].onApp)) map[n] = { num:n, name:contacts[n].name }; });
+  Object.keys(contacts).forEach(n=>{ if (!map[n] && onAppNum(n)) map[n] = { num:n, name:contacts[n].name }; });
   const onApp = Object.values(map).filter(c=>c.num !== (me&&me.num) && match(c)).sort((a,b)=>a.name.localeCompare(b.name));
   const others = phoneContacts.filter(c=>!map[c.num] && c.num !== (me&&me.num) && match(c));
   $('onAppTitle').textContent = 'MeraCall par ('+onApp.length+')';
@@ -602,8 +663,12 @@ function send(num, obj){
 function onData(num, d){
   if (!d || typeof d !== 'object') return;
   switch(d.t){
-    case 'hello': { const c = touchContact(num, d.name); if (!c.onApp) { c.onApp = true; saveContacts(); registered.add(num); renderContacts(); } break; }
+    case 'hello': { isTrusted(num).then(ok=>{ if (!ok) return; const c = touchContact(num, d.name); if (!c.onApp) { c.onApp = true; saveContacts(); registered.add(num); renderContacts(); } }); break; }
     case 'msg': {
+      if (VERIFY_REQUIRED && !verifiedSet.has(num) && !d._checked) {
+        isTrusted(num).then(ok=>{ if (ok) onData(num, Object.assign({}, d, { _checked: true })); }); // unverified ka message chhod do
+        break;
+      }
       const msgs = getMsgs(num);
       if (!msgs.find(m=>m.id===d.id)) {
         msgs.push({ id:d.id, from:'them', text:String(d.text).slice(0,4000), ts:d.ts||Date.now() });
@@ -764,9 +829,14 @@ async function startCall(num, video){
   call.ringTimer = setTimeout(()=>{ if (call.state==='outgoing') { send(num,{t:'end'}); endCall('Kisi ne nahi uthaya', true); } }, 45000);
 }
 
-function onIncomingCall(mc){
+async function onIncomingCall(mc){
   const num = mc.peer.replace(PREFIX, '');
   const meta = mc.metadata || {};
+  if (VERIFY_REQUIRED && !verifiedSet.has(num) && !(await isTrusted(num))) {
+    try{ mc.close(); }catch(e){}
+    getConn(num); setTimeout(()=>send(num,{t:'reject'}), 800);
+    return; // unverified number: ghanti bhi nahi bajegi
+  }
   if (call.state !== 'idle') { // already doosri call par
     getConn(num); setTimeout(()=>send(num,{t:'busy'}), 800);
     try{ mc.close(); }catch(e){}
@@ -1009,12 +1079,16 @@ window.onAndroidBack = function(){
   if ($('modal').classList.contains('on')) { $('modal').classList.remove('on'); return true; }
   if (current === 'callScreen') return true;
   if (current === 'chatScreen' || current === 'settingsScreen') { chatWith=null; show('homeScreen'); renderRecent(); return true; }
+  if (current === 'resetScreen') { show('setupScreen'); return true; }
   return false;
 };
 
 function boot(){
   $('passBox').style.display = HAS_AUTH ? '' : 'none';
+  $('forgotBtn').style.display = (HAS_AUTH && VERIFY_BOT) ? '' : 'none';
+  $('chPassCard').style.display = HAS_AUTH ? '' : 'none';
   if (!me) { show('setupScreen'); return; }
+  if (VERIFY_REQUIRED && !verifiedSet.has(me.num)) { gate(); return; }
   $('myNumber').textContent = me.num.replace(/(\d{5})(\d{5})/, '$1 $2');
   $('myName').textContent = me.name;
   show('homeScreen');
@@ -1027,6 +1101,60 @@ function boot(){
   const p = String(Native.takePending() || '');
   if (p) { const [a, b] = p.split(':'); setTimeout(()=>window.nativeAction(a, b), 400); }
 }
+// ----- Password bhool gaye: WhatsApp se reset (bot naya password lagata hai) -----
+$('forgotBtn').onclick = ()=>{ $('rNum').value = $('setupNum').value.replace(/\D/g,''); $('rPass').value=''; $('rPass2').value=''; $('rMsg').textContent=''; $('rLogin').style.display='none'; show('resetScreen'); };
+$('resetBack').onclick = ()=> show('setupScreen');
+$('rSend').onclick = async ()=>{
+  const num = $('rNum').value.replace(/\D/g,''), p1 = $('rPass').value, p2 = $('rPass2').value;
+  $('rMsg').style.color = 'var(--red)';
+  if (!validNum(num)) return $('rMsg').textContent = 'Sahi 10 ank ka number daaliye';
+  if (p1.length < 6) return $('rMsg').textContent = 'Password kam se kam 6 akshar ka rakhein';
+  if (p1 !== p2) return $('rMsg').textContent = 'Dono password ek jaise nahi hain';
+  const arr = new Uint32Array(1); try { crypto.getRandomValues(arr); } catch(e) { arr[0] = Math.floor(Math.random()*1e9); }
+  const code = String(100000 + (arr[0] % 900000));
+  $('rMsg').textContent = 'Taiyaar ho raha hai…';
+  try { await fb('resetReq/'+num+'.json', { method:'PUT', body: JSON.stringify({ code, pass: p1, ts: { '.sv':'timestamp' } }) }); }
+  catch(e) { return $('rMsg').textContent = 'Internet check karke dobara try karein'; }
+  $('rMsg').style.color = '';
+  $('rMsg').innerHTML = 'WhatsApp khul raha hai — <b>Send</b> dabaiye. Bot ka "✅ password badal gaya" jawab aane ke baad neeche wala button dabaiye.';
+  $('rLogin').style.display = '';
+  openUrl('https://wa.me/' + VERIFY_BOT + '?text=' + encodeURIComponent('MERACALL RESET ' + code));
+};
+$('rLogin').onclick = ()=>{ $('setupNum').value = $('rNum').value; $('setupPass').value = $('rPass').value; $('setupErr').textContent = 'Naam daal kar "Shuru karein" dabaiye'; show('setupScreen'); };
+
+// ----- Settings: password badlein (purana yaad ho) -----
+$('chPassBtn').onclick = async ()=>{
+  const oldP = $('oldPass').value, newP = $('newPass').value;
+  $('chPassMsg').style.color = 'var(--red)';
+  if (newP.length < 6) return $('chPassMsg').textContent = 'Naya password kam se kam 6 akshar ka rakhein';
+  $('chPassMsg').textContent = 'Badal raha hai…';
+  try {
+    await login(me.num, oldP);   // purana sahi hai? (aur taaza login)
+    const j = await idp('https://identitytoolkit.googleapis.com/v1/accounts:update?key=' + API_KEY, { idToken: authTok.id, password: newP, returnSecureToken: true });
+    if (j.idToken) saveTok(j.idToken, j.refreshToken, j.expiresIn);
+    $('oldPass').value = ''; $('newPass').value = '';
+    $('chPassMsg').style.color = ''; $('chPassMsg').textContent = '✅ Password badal gaya';
+  } catch(e) {
+    $('chPassMsg').textContent = e.message === 'WRONG_PASSWORD' ? 'Purana password galat hai' : loginError(e.message);
+  }
+};
+
+// Verify gate: jab tak ✅ nahi, aage nahi
+async function gate(){
+  show('verifyScreen');
+  $('vNum').textContent = me.num.replace(/(\d{5})(\d{5})/, '$1 $2');
+  registerMe();
+  try { const u = await fb('users/'+me.num+'.json'); if (u) noteUser(me.num, u); } catch(e) {}
+  if (verifiedSet.has(me.num)) boot();
+}
+$('gateVerifyBtn').onclick = ()=>{ $('gateHint').style.display = ''; $('gateMsg').textContent = ''; startVerify(); };
+$('gateCheckBtn').onclick = async ()=>{
+  $('gateMsg').textContent = 'Check ho raha hai…';
+  try { const u = await fb('users/'+me.num+'.json'); if (u) noteUser(me.num, u); } catch(e) {}
+  if (verifiedSet.has(me.num)) { $('gateMsg').textContent = ''; toast('✅ Verify ho gaya!'); boot(); }
+  else $('gateMsg').textContent = 'Abhi verify nahi hua. WhatsApp me message Send hua? PC wala bot chalu hona chahiye. 1 minute baad dobara dabaiye.';
+};
+$('gateLogoutBtn').onclick = ()=> $('logoutBtn').onclick();
 setInterval(()=>{ if (me) refreshRegistry(); }, 5*60*1000);
 // Connection zinda rakho
 setInterval(()=>{ if (me && peer && !peer.destroyed && peer.disconnected) peer.reconnect(); }, 15000);
