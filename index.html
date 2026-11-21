@@ -86,6 +86,11 @@
       <input id="setupName" placeholder="Jaise: Rahul" maxlength="30">
       <label>Aapka number (10 ank)</label>
       <input id="setupNum" type="tel" inputmode="numeric" placeholder="9876543210" maxlength="10">
+      <div id="passBox">
+        <label>Password (kam se kam 6 akshar)</label>
+        <input id="setupPass" type="password" placeholder="Yaad rakhne wala password" maxlength="40" autocomplete="current-password">
+        <p class="hint">Naye ho to naya password banaiye. App dobara install karne par isi number + password se aapka number wapas milega. Password kahin likh kar rakhiye.</p>
+      </div>
       <div style="height:16px"></div>
       <button class="btn" id="setupBtn">Shuru karein</button>
       <p class="hint" id="setupErr" style="color:var(--red)"></p>
@@ -274,12 +279,50 @@ try { cfg = JSON.parse(Native.getConfig ? Native.getConfig() : '{}') || {}; } ca
 const APK_URL = cfg.apkUrl || '';
 const FB = (cfg.firebase || '').replace(/\/?$/, '/');
 const HAS_FB = !!cfg.firebase;
-let myDev = store.get('dev', null); if (!myDev) { myDev = uid() + uid(); store.set('dev', myDev); }
+// Login: number + password (Firebase Email/Password). Isi se app dobara install karne par number wapas milta hai.
+const API_KEY = cfg.apiKey || '';
+const HAS_AUTH = HAS_FB && !!API_KEY;
+let authTok = store.get('auth', null);   // { id, refresh, exp }
+async function idp(url, body, form){
+  const r = await fetch(url, { method:'POST', headers:{ 'Content-Type': form ? 'application/x-www-form-urlencoded' : 'application/json' }, body: form ? body : JSON.stringify(body) });
+  let j = {}; try { j = await r.json(); } catch(e) {}
+  if (!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status));
+  return j;
+}
+function saveTok(id, refresh, secs){ authTok = { id, refresh, exp: Date.now() + (parseInt(secs || '3600', 10) - 120) * 1000 }; store.set('auth', authTok); }
+async function login(num, pass){
+  const email = num + '@meracall.app', IT = 'https://identitytoolkit.googleapis.com/v1/accounts:';
+  let j;
+  try { j = await idp(IT + 'signInWithPassword?key=' + API_KEY, { email, password: pass, returnSecureToken: true }); }
+  catch(e) {
+    if (!/INVALID_LOGIN_CREDENTIALS|EMAIL_NOT_FOUND|INVALID_PASSWORD/.test(e.message)) throw e;
+    try { j = await idp(IT + 'signUp?key=' + API_KEY, { email, password: pass, returnSecureToken: true }); }
+    catch(e2) { if (/EMAIL_EXISTS/.test(e2.message)) throw new Error('WRONG_PASSWORD'); throw e2; }
+  }
+  saveTok(j.idToken, j.refreshToken, j.expiresIn);
+}
+async function idToken(){
+  if (!authTok) return null;
+  if (Date.now() < authTok.exp) return authTok.id;
+  try {
+    const j = await idp('https://securetoken.googleapis.com/v1/token?key=' + API_KEY, 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(authTok.refresh), true);
+    saveTok(j.id_token, j.refresh_token, j.expires_in);
+    return authTok.id;
+  } catch(e) { return null; }
+}
+function loginError(m){
+  if (m === 'WRONG_PASSWORD') return 'Ye number pehle se registered hai aur password galat hai.';
+  if (/TOO_MANY_ATTEMPTS/.test(m)) return 'Bahut baar galat password. Thodi der baad try karein.';
+  if (/WEAK_PASSWORD/.test(m)) return 'Password kam se kam 6 akshar ka rakhein.';
+  if (/USER_DISABLED/.test(m)) return 'Ye number band kar diya gaya hai.';
+  return 'Internet check karke dobara try karein.';
+}
 let registered = new Set(store.get('registered', []));
 let phoneContacts = [];
 
-async function fb(path, opts){
+async function fb(path, opts, withAuth){
   if (!HAS_FB) throw new Error('no-fb');
+  if (withAuth) { const t = await idToken(); if (!t) throw new Error('no-auth'); path += (path.includes('?') ? '&' : '?') + 'auth=' + encodeURIComponent(t); }
   const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), 10000);
   try {
     const r = await fetch(FB + path, Object.assign({ signal: ctl.signal, cache:'no-store' }, opts||{}));
@@ -307,7 +350,8 @@ async function refreshRegistry(){
 }
 async function registerMe(){
   if (!HAS_FB || !me) return;
-  try { await fb('users/'+me.num+'.json', { method:'PUT', body: JSON.stringify({ dev: myDev, ts: { '.sv':'timestamp' } }) }); registered.add(me.num); } catch(e) {}
+  if (!HAS_AUTH || !authTok) return;
+  try { await fb('users/'+me.num+'.json', { method:'PUT', body: JSON.stringify({ ts: { '.sv':'timestamp' } }) }, true); registered.add(me.num); } catch(e) {}
 }
 // true = app hai, false = app nahi, null = pata nahi (internet/Firebase nahi)
 async function hasApp(num){
@@ -800,13 +844,13 @@ $('setupBtn').onclick = async ()=>{
   const name = $('setupName').value.trim(), num = $('setupNum').value.replace(/\D/g,'');
   if (!name) return $('setupErr').textContent = 'Naam daalein';
   if (!validNum(num)) return $('setupErr').textContent = 'Sahi 10 ank ka mobile number daalein (6-9 se shuru)';
-  // Ek number sirf ek phone par: directory me pehle se kisi aur phone ka ho to mana
-  if (HAS_FB) {
-    $('setupBtn').disabled = true; $('setupErr').textContent = 'Check ho raha hai…';
-    try {
-      const u = await fb('users/'+num+'.json');
-      if (u && u.dev && u.dev !== myDev) { $('setupErr').textContent = 'Ye number pehle se kisi aur phone par MeraCall me registered hai.'; $('setupBtn').disabled = false; return; }
-    } catch(e) { $('setupErr').textContent = 'Internet check karein aur dobara try karein'; $('setupBtn').disabled = false; return; }
+  // Number + password: naya ho to account banega, purana ho to sahi password se wapas milega
+  if (HAS_AUTH) {
+    const pass = $('setupPass').value;
+    if (pass.length < 6) return $('setupErr').textContent = 'Password kam se kam 6 akshar ka rakhein';
+    $('setupBtn').disabled = true; $('setupErr').textContent = 'Login ho raha hai…';
+    try { await login(num, pass); }
+    catch(e) { $('setupErr').textContent = loginError(e.message); $('setupBtn').disabled = false; return; }
     $('setupBtn').disabled = false;
   }
   $('setupErr').textContent = '';
@@ -848,8 +892,8 @@ $('settingsBack').onclick = ()=> show('homeScreen');
 $('saveName').onclick = ()=>{ const n=$('setName').value.trim(); if(!n) return; me.name=n; store.set('me',me); $('myName').textContent=n; toast('Naam save ho gaya'); };
 $('saveTurn').onclick = ()=>{ store.set('turn', { url:$('turnUrl').value.trim(), user:$('turnUser').value.trim(), pass:$('turnPass').value.trim() }); toast('Save ho gaya'); startPeer(); show('homeScreen'); };
 $('logoutBtn').onclick = async ()=>{
-  if (HAS_FB && me) { try { const u = await fb('users/'+me.num+'.json'); if (u && u.dev === myDev) await fb('users/'+me.num+'.json', { method:'DELETE' }); } catch(e) {} }
-  if (peer) peer.destroy(); localStorage.removeItem('me'); me=null; show('setupScreen');
+  if (HAS_AUTH && me) { try { await fb('users/'+me.num+'.json', { method:'DELETE' }, true); } catch(e) {} }
+  if (peer) peer.destroy(); localStorage.removeItem('me'); localStorage.removeItem('auth'); authTok = null; me=null; show('setupScreen');
 };
 
 // Notification ke button: Utha lo / Kaato / chat kholo
@@ -870,6 +914,7 @@ window.onAndroidBack = function(){
 };
 
 function boot(){
+  $('passBox').style.display = HAS_AUTH ? '' : 'none';
   if (!me) { show('setupScreen'); return; }
   $('myNumber').textContent = me.num.replace(/(\d{5})(\d{5})/, '$1 $2');
   $('myName').textContent = me.name;
