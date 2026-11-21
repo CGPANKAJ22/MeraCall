@@ -153,6 +153,11 @@
       <div class="hint" style="margin:0">Mera number</div>
       <div class="mynum" id="myNumber"></div>
       <div class="hint" id="myName"></div>
+      <div id="verifyBox" style="display:none;margin-top:10px">
+        <div id="verifiedTag" style="display:none;color:#139a4b;font-weight:700">✅ Number verified</div>
+        <button class="btn green" id="verifyBtn" style="display:none">✅ WhatsApp se number verify karein</button>
+        <p class="hint" id="verifyHint" style="display:none">WhatsApp khulega — bas <b>Send</b> dabaiye, phir yahan wapas aaiye.</p>
+      </div>
     </div>
     <div class="card">
       <label style="margin-top:0">Number dial karein</label>
@@ -342,6 +347,48 @@ function loginError(m){
   return 'Internet check karke dobara try karein.';
 }
 let registered = new Set(store.get('registered', []));
+let verifiedSet = new Set(store.get('verifiedSet', []));
+const VERIFY_BOT = String(cfg.verifyBot || '').replace(/\D/g, '');
+function vTag(num){ return verifiedSet.has(num) ? ' ✅' : ''; }
+function noteUser(num, u){
+  if (!u) return;
+  registered.add(num);
+  if (u.verified) verifiedSet.add(num); else verifiedSet.delete(num);
+  store.set('verifiedSet', [...verifiedSet]);
+}
+// ----- Number verification (WhatsApp se, Pankaj ke bot ke through) -----
+function renderVerify(){
+  const box = $('verifyBox'); if (!box) return;
+  const can = HAS_AUTH && !!VERIFY_BOT && !!me;
+  box.style.display = can ? '' : 'none';
+  if (!can) return;
+  const ok = verifiedSet.has(me.num);
+  $('verifiedTag').style.display = ok ? '' : 'none';
+  $('verifyBtn').style.display = ok ? 'none' : '';
+}
+let verifyPoll = null;
+async function startVerify(){
+  if (!HAS_AUTH || !VERIFY_BOT || !me) return;
+  const arr = new Uint32Array(1); try { crypto.getRandomValues(arr); } catch(e) { arr[0] = Math.floor(Math.random()*1e9); }
+  const code = String(100000 + (arr[0] % 900000));
+  try { await fb('verify/'+me.num+'.json', { method:'PUT', body: JSON.stringify({ code, ts: { '.sv':'timestamp' } }) }, true); }
+  catch(e) { return toast('Abhi shuru nahi ho paya. Internet check karein.'); }
+  $('verifyHint').style.display = '';
+  openUrl('https://wa.me/' + VERIFY_BOT + '?text=' + encodeURIComponent('MERACALL ' + code));
+  clearInterval(verifyPoll);
+  let tries = 0;
+  verifyPoll = setInterval(async ()=>{
+    if (++tries > 40) { clearInterval(verifyPoll); return; }
+    try {
+      const u = await fb('users/'+me.num+'.json');
+      if (u && u.verified) { clearInterval(verifyPoll); noteUser(me.num, u); renderVerify(); $('verifyHint').style.display='none'; toast('✅ Aapka number verify ho gaya!', 3500); }
+    } catch(e) {}
+  }, 5000);
+}
+async function refreshMyVerify(){
+  if (!HAS_FB || !me) return;
+  try { const u = await fb('users/'+me.num+'.json'); if (u) noteUser(me.num, u); renderVerify(); } catch(e) {}
+}
 let phoneContacts = [];
 
 async function fb(path, opts, withAuth){
@@ -364,7 +411,7 @@ async function refreshRegistry(){
     const todo = phoneContacts.map(c=>c.num).filter(n=> n !== me.num && !registered.has(n) && !(checked[n] && now - checked[n] < 12*3600*1000)).slice(0, 300);
     for (let i = 0; i < todo.length; i += 10) {
       await Promise.all(todo.slice(i, i+10).map(async n=>{
-        try { const u = await fb('users/'+n+'.json'); if (u) registered.add(n); else checked[n] = now; } catch(e) {}
+        try { const u = await fb('users/'+n+'.json'); if (u) noteUser(n, u); else checked[n] = now; } catch(e) {}
       }));
     }
     store.set('checked', checked);
@@ -375,13 +422,14 @@ async function refreshRegistry(){
 async function registerMe(){
   if (!HAS_FB || !me) return;
   if (!HAS_AUTH || !authTok) return;
-  try { await fb('users/'+me.num+'.json', { method:'PUT', body: JSON.stringify({ ts: { '.sv':'timestamp' } }) }, true); registered.add(me.num); } catch(e) {}
+  try { await fb('users/'+me.num+'/ts.json', { method:'PUT', body: JSON.stringify({ '.sv':'timestamp' }) }, true); registered.add(me.num); } catch(e) {}
+  refreshMyVerify();
 }
 // true = app hai, false = app nahi, null = pata nahi (internet/Firebase nahi)
 async function hasApp(num){
   if (registered.has(num) || (contacts[num] && contacts[num].onApp)) return true;
   if (!HAS_FB) return null;
-  try { const u = await fb('users/'+num+'.json'); if (u) { registered.add(num); store.set('registered',[...registered]); } return !!u; }
+  try { const u = await fb('users/'+num+'.json'); if (u) { noteUser(num, u); store.set('registered',[...registered]); } return !!u; }
   catch(e) { return null; }
 }
 
@@ -446,7 +494,7 @@ function renderContacts(){
   const others = phoneContacts.filter(c=>!map[c.num] && c.num !== (me&&me.num) && match(c));
   $('onAppTitle').textContent = 'MeraCall par ('+onApp.length+')';
   onEl.innerHTML = onApp.length ? onApp.map(c=>
-    '<div class="item" data-num="'+c.num+'"><div class="avatar">'+esc(initials(c.name))+'</div><div class="meta"><div class="name">'+esc(c.name)+'</div><div class="last">'+c.num+'</div></div>'+
+    '<div class="item" data-num="'+c.num+'"><div class="avatar">'+esc(initials(c.name))+'</div><div class="meta"><div class="name">'+esc(c.name)+vTag(c.num)+'</div><div class="last">'+c.num+'</div></div>'+
     '<button class="mini" data-act="voice">📞</button><button class="mini" data-act="video">🎥</button><button class="mini" data-act="chat">💬</button></div>').join('')
     : '<div class="empty">'+(HAS_FB ? 'Aapke contacts me abhi kisi ke paas MeraCall nahi hai.<br>Neeche se invite bhejein 👇' : 'Firebase set nahi hai (README dekhein). Abhi sirf number daal kar call karein.')+'</div>';
   const shown = others.slice(0, 80);
@@ -627,7 +675,7 @@ function openChat(num){
   Native.clearNotif(num);
   const c = touchContact(num);
   c.unread = 0; saveContacts(); renderRecent();
-  $('chatTitle').textContent = c.name;
+  $('chatTitle').textContent = c.name + vTag(num);
   $('chatAvatar').textContent = initials(c.name);
   $('chatSub').textContent = num;
   show('chatScreen');
@@ -676,7 +724,10 @@ function callUI(num, video, status, incoming){
   const c = contacts[num] || { name:num };
   $('callAvatar').textContent = initials(c.name);
   $('callName').textContent = c.name;
-  $('callNumber').textContent = (video ? '🎥 Video call · ' : '📞 Voice call · ') + num;
+  $('callNumber').textContent = (video ? '🎥 Video call · ' : '📞 Voice call · ') + num + (verifiedSet.has(num) ? '  ✅' : '');
+  if (incoming && HAS_FB && !verifiedSet.has(num)) {
+    hasApp(num).then(()=>{ if (call.num === num) $('callNumber').textContent = (video ? '🎥 Video call · ' : '📞 Voice call · ') + num + (verifiedSet.has(num) ? '  ✅' : '  ⚠️ verify nahi'); });
+  }
   $('callStatus').textContent = status;
   $('incomingBtns').style.display = incoming ? 'flex' : 'none';
   $('activeBtns').style.display = incoming ? 'none' : 'flex';
@@ -899,6 +950,7 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
 $('contactSearch').addEventListener('input', renderContacts);
 $('contactsPermBtn').onclick = ()=> Native.askContacts && Native.askContacts();
 $('inviteAnyBtn').onclick = ()=> showInvite(null);
+$('verifyBtn').onclick = startVerify;
 $('modal').onclick = e=>{ if (e.target.id==='modal') $('modal').classList.remove('on'); };
 $('chatBack').onclick = ()=> { chatWith = null; show('homeScreen'); renderRecent(); };
 $('chatVoice').onclick = ()=> startCall(chatWith, false);
@@ -939,7 +991,7 @@ $('settingsBack').onclick = ()=> show('homeScreen');
 $('saveName').onclick = ()=>{ const n=$('setName').value.trim(); if(!n) return; me.name=n; store.set('me',me); $('myName').textContent=n; toast('Naam save ho gaya'); };
 $('saveTurn').onclick = ()=>{ store.set('turn', { url:$('turnUrl').value.trim(), user:$('turnUser').value.trim(), pass:$('turnPass').value.trim() }); toast('Save ho gaya'); startPeer(); show('homeScreen'); };
 $('logoutBtn').onclick = async ()=>{
-  if (HAS_AUTH && me) { try { await fb('users/'+me.num+'.json', { method:'DELETE' }, true); } catch(e) {} }
+  if (HAS_AUTH && me) { try { await fb('users/'+me.num+'/ts.json', { method:'DELETE' }, true); } catch(e) {} }
   if (peer) peer.destroy(); localStorage.removeItem('me'); localStorage.removeItem('auth'); authTok = null; me=null; show('setupScreen');
 };
 
@@ -969,6 +1021,7 @@ function boot(){
   renderRecent();
   startPeer();
   registerMe();
+  renderVerify();
   loadPhoneContacts();
   refreshRegistry();
   const p = String(Native.takePending() || '');
