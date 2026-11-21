@@ -183,13 +183,10 @@
   <header><button class="iconbtn" id="resetBack">←</button><h1>Password reset</h1></header>
   <div class="content">
     <div class="card">
-      <p class="hint" style="margin-top:0;font-size:14px">Naya password yahan daaliye. Phir WhatsApp se ek message bhejna hai — usi number ke WhatsApp se jo yahan daala hai.</p>
+      <p class="hint" style="margin-top:0;font-size:14px">Apna number daaliye. WhatsApp khulega — bas <b>Send</b> dabaiye. Bot aapka number pakka karke <b>naya password WhatsApp par bhej dega</b>.</p>
+      <p class="hint" style="font-size:13px">⚠️ Usi phone/WhatsApp se bhejiye jiska number yahan daala hai.</p>
       <label>Aapka number (10 ank)</label>
       <input id="rNum" type="tel" inputmode="numeric" maxlength="10" placeholder="9876543210">
-      <label>Naya password (kam se kam 6 akshar)</label>
-      <input id="rPass" type="password" maxlength="40" autocomplete="new-password">
-      <label>Naya password dobara</label>
-      <input id="rPass2" type="password" maxlength="40" autocomplete="new-password">
       <div style="height:14px"></div>
       <button class="btn green" id="rSend">WhatsApp se reset karein</button>
       <p class="hint" id="rMsg"></p>
@@ -1102,25 +1099,18 @@ function boot(){
   if (p) { const [a, b] = p.split(':'); setTimeout(()=>window.nativeAction(a, b), 400); }
 }
 // ----- Password bhool gaye: WhatsApp se reset (bot naya password lagata hai) -----
-$('forgotBtn').onclick = ()=>{ $('rNum').value = $('setupNum').value.replace(/\D/g,''); $('rPass').value=''; $('rPass2').value=''; $('rMsg').textContent=''; $('rLogin').style.display='none'; show('resetScreen'); };
+$('forgotBtn').onclick = ()=>{ $('rNum').value = $('setupNum').value.replace(/\D/g,''); $('rMsg').textContent=''; $('rLogin').style.display='none'; show('resetScreen'); };
 $('resetBack').onclick = ()=> show('setupScreen');
-$('rSend').onclick = async ()=>{
-  const num = $('rNum').value.replace(/\D/g,''), p1 = $('rPass').value, p2 = $('rPass2').value;
+$('rSend').onclick = ()=>{
+  const num = $('rNum').value.replace(/\D/g,'');
   $('rMsg').style.color = 'var(--red)';
   if (!validNum(num)) return $('rMsg').textContent = 'Sahi 10 ank ka number daaliye';
-  if (p1.length < 6) return $('rMsg').textContent = 'Password kam se kam 6 akshar ka rakhein';
-  if (p1 !== p2) return $('rMsg').textContent = 'Dono password ek jaise nahi hain';
-  const arr = new Uint32Array(1); try { crypto.getRandomValues(arr); } catch(e) { arr[0] = Math.floor(Math.random()*1e9); }
-  const code = String(100000 + (arr[0] % 900000));
-  $('rMsg').textContent = 'Taiyaar ho raha hai…';
-  try { await fb('resetReq/'+num+'.json', { method:'PUT', body: JSON.stringify({ code, pass: p1, ts: { '.sv':'timestamp' } }) }); }
-  catch(e) { return $('rMsg').textContent = 'Internet check karke dobara try karein'; }
   $('rMsg').style.color = '';
-  $('rMsg').innerHTML = 'WhatsApp khul raha hai — <b>Send</b> dabaiye. Bot ka "✅ password badal gaya" jawab aane ke baad neeche wala button dabaiye.';
+  $('rMsg').innerHTML = 'WhatsApp khul raha hai — <b>Send</b> dabaiye. Bot naya password bhejega. Phir neeche wala button dabaiye.';
   $('rLogin').style.display = '';
-  openUrl('https://wa.me/' + VERIFY_BOT + '?text=' + encodeURIComponent('MERACALL RESET ' + code));
+  openUrl('https://wa.me/' + VERIFY_BOT + '?text=' + encodeURIComponent('MERACALL RESET'));
 };
-$('rLogin').onclick = ()=>{ $('setupNum').value = $('rNum').value; $('setupPass').value = $('rPass').value; $('setupErr').textContent = 'Naam daal kar "Shuru karein" dabaiye'; show('setupScreen'); };
+$('rLogin').onclick = ()=>{ $('setupNum').value = $('rNum').value; $('setupPass').value = ''; $('setupErr').textContent = 'Naam aur WhatsApp par aaya password daal kar "Shuru karein" dabaiye'; show('setupScreen'); };
 
 // ----- Settings: password badlein (purana yaad ho) -----
 $('chPassBtn').onclick = async ()=>{
