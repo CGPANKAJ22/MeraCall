@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>MeraCall</title>
+<style>
+  :root{--blue:#0A7CFF;--bg:#f4f6fb;--card:#fff;--text:#1b1f29;--muted:#7a8194;--green:#1fb760;--red:#ec3b3b}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+  .screen{position:fixed;inset:0;display:none;flex-direction:column}
+  .screen.active{display:flex}
+  header{background:var(--blue);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px;min-height:58px}
+  header h1{font-size:19px;margin:0;flex:1;font-weight:600}
+  header .sub{font-size:12px;opacity:.85}
+  .iconbtn{background:none;border:none;color:inherit;font-size:22px;padding:6px;cursor:pointer}
+  .content{flex:1;overflow-y:auto;padding:14px}
+  .card{background:var(--card);border-radius:16px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:14px}
+  input{width:100%;font-size:18px;padding:13px 14px;border:1.5px solid #d6dbe6;border-radius:12px;outline:none;background:#fff}
+  input:focus{border-color:var(--blue)}
+  label{display:block;font-size:13px;color:var(--muted);margin:12px 0 6px}
+  .btn{border:none;border-radius:12px;padding:13px 16px;font-size:16px;font-weight:600;cursor:pointer;color:#fff;background:var(--blue);width:100%}
+  .btn.green{background:var(--green)} .btn.red{background:var(--red)} .btn.ghost{background:#e9eefb;color:var(--blue)}
+  .row{display:flex;gap:10px}
+  .row .btn{flex:1}
+  .mynum{font-size:26px;font-weight:700;letter-spacing:1px}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#bbb;margin-right:6px}
+  .dot.on{background:#3ee07a}
+  .list .item{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid #eef0f5;cursor:pointer}
+  .avatar{width:44px;height:44px;border-radius:50%;background:#dfe8ff;color:var(--blue);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;flex-shrink:0}
+  .item .meta{flex:1;min-width:0}
+  .item .name{font-weight:600}
+  .item .last{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .item .time{color:var(--muted);font-size:11px}
+  .badge{background:var(--green);color:#fff;border-radius:10px;font-size:11px;padding:2px 7px;margin-left:6px}
+  .empty{text-align:center;color:var(--muted);padding:30px 10px;font-size:14px}
+  /* chat */
+  #msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:6px;background:#e9edf5}
+  .msg{max-width:78%;padding:9px 12px;border-radius:14px;font-size:15px;line-height:1.35;word-wrap:break-word;white-space:pre-wrap}
+  .msg.me{align-self:flex-end;background:#d4e6ff;border-bottom-right-radius:4px}
+  .msg.them{align-self:flex-start;background:#fff;border-bottom-left-radius:4px}
+  .msg .t{font-size:10px;color:var(--muted);text-align:right;margin-top:3px}
+  .sys{align-self:center;font-size:12px;color:var(--muted);background:#fff8;padding:4px 10px;border-radius:10px}
+  .composer{display:flex;gap:8px;padding:8px;background:#fff;border-top:1px solid #e4e7ee}
+  .composer input{flex:1;border-radius:24px;font-size:16px;padding:11px 16px}
+  .composer button{width:48px;height:48px;border-radius:50%;border:none;background:var(--blue);color:#fff;font-size:20px}
+  /* call */
+  #callScreen{background:#10141c;color:#fff}
+  #remoteVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#10141c}
+  #localVideo{position:absolute;right:14px;top:14px;width:30%;max-width:150px;border-radius:12px;object-fit:cover;z-index:3;border:2px solid #fff3;transform:scaleX(-1)}
+  .callInfo{position:relative;z-index:2;text-align:center;padding-top:70px}
+  .callInfo .big{width:110px;height:110px;font-size:44px;margin:0 auto 16px;background:#2a3346;color:#fff}
+  .callInfo h2{margin:0;font-size:26px}
+  .callInfo p{margin:8px 0;opacity:.8}
+  .callBtns{position:absolute;bottom:40px;left:0;right:0;display:flex;justify-content:center;gap:18px;z-index:4;flex-wrap:wrap;padding:0 10px}
+  .cbtn{width:62px;height:62px;border-radius:50%;border:none;font-size:24px;background:#ffffff26;color:#fff;cursor:pointer}
+  .cbtn.off{background:#fff;color:#222}
+  .cbtn.red{background:var(--red)} .cbtn.green{background:var(--green)}
+  .cbtn small{display:block;font-size:10px}
+  .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#222d;color:#fff;padding:10px 18px;border-radius:20px;font-size:14px;z-index:99;display:none;max-width:90%;text-align:center}
+  .hint{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.4}
+  .credit{text-align:center;font-size:12px;color:var(--muted);margin:18px 0 8px}
+  .tabs{display:flex;background:var(--blue);padding:0 8px}
+  .tabs button{flex:1;background:none;border:none;color:#fff9;font-size:15px;font-weight:600;padding:12px 0;border-bottom:3px solid transparent}
+  .tabs button.on{color:#fff;border-bottom-color:#fff}
+  .tabpane{display:none}.tabpane.on{display:block}
+  .secTitle{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;margin:14px 4px 4px}
+  .mini{border:none;background:#eef3ff;color:var(--blue);border-radius:50%;width:38px;height:38px;font-size:17px;margin-left:4px}
+  .invite{border:none;background:#e7f8ee;color:#139a4b;border-radius:16px;padding:7px 14px;font-weight:700;font-size:13px}
+  #modal{position:fixed;inset:0;background:#0007;z-index:50;display:none;align-items:flex-end;justify-content:center}
+  #modal.on{display:flex}
+  #modal .sheet{background:#fff;width:100%;max-width:520px;border-radius:20px 20px 0 0;padding:20px 18px 26px}
+  #modal .sheet .btn{margin-top:10px}
+</style>
+</head>
+<body>
+
+<!-- 1. SETUP: user apna number khud daalega -->
+<div class="screen" id="setupScreen">
+  <header><h1>📞 MeraCall</h1></header>
+  <div class="content">
+    <div class="card">
+      <h2 style="margin-top:0">Apna number banao</h2>
+      <p class="hint">Ye number aapki calling ID hogi. Doosre log isi number par aapko call / video call / chat karenge. Ek number ek hi phone par chal sakta hai.</p>
+      <label>Aapka naam</label>
+      <input id="setupName" placeholder="Jaise: Rahul" maxlength="30">
+      <label>Aapka number (10 ank)</label>
+      <input id="setupNum" type="tel" inputmode="numeric" placeholder="9876543210" maxlength="10">
+      <div style="height:16px"></div>
+      <button class="btn" id="setupBtn">Shuru karein</button>
+      <p class="hint" id="setupErr" style="color:var(--red)"></p>
+    </div>
+    <p class="credit">Built by <b>Pankaj Jaiswal</b></p>
+  </div>
+</div>
+
+<!-- 2. HOME -->
+<div class="screen" id="homeScreen">
+  <header>
+    <div style="flex:1">
+      <h1>📞 MeraCall</h1>
+      <div class="sub"><span class="dot" id="statusDot"></span><span id="statusText">Connect ho raha hai…</span></div>
+    </div>
+    <button class="iconbtn" id="settingsBtn">⚙️</button>
+  </header>
+  <div class="tabs">
+    <button class="on" data-tab="tabHome">Chats</button>
+    <button data-tab="tabContacts">Contacts</button>
+  </div>
+  <div class="content tabpane" id="tabContacts">
+    <input id="contactSearch" placeholder="🔍 Naam ya number khojein">
+    <div id="contactsPerm" class="card" style="display:none;margin-top:12px">
+      <p style="margin-top:0">Apne phone contacts me se kaun MeraCall par hai, ye dekhne ke liye permission dein.</p>
+      <button class="btn" id="contactsPermBtn">Contacts dikhao</button>
+    </div>
+    <div class="secTitle" id="onAppTitle">MeraCall par</div>
+    <div class="list card" id="onAppList" style="padding:4px 12px"></div>
+    <div class="secTitle">Invite karein (inke paas app nahi hai)</div>
+    <div class="list card" id="inviteList" style="padding:4px 12px"></div>
+    <button class="btn ghost" id="inviteAnyBtn">📤 Kisi ko bhi app ka link bhejein</button>
+  </div>
+  <div class="content tabpane on" id="tabHome">
+    <div class="card">
+      <div class="hint" style="margin:0">Mera number</div>
+      <div class="mynum" id="myNumber"></div>
+      <div class="hint" id="myName"></div>
+    </div>
+    <div class="card">
+      <label style="margin-top:0">Number dial karein</label>
+      <input id="dialNum" type="tel" inputmode="numeric" placeholder="10 ank ka number" maxlength="10">
+      <div style="height:10px"></div>
+      <div class="row">
+        <button class="btn green" id="dialVoice">📞 Call</button>
+        <button class="btn" id="dialVideo">🎥 Video</button>
+        <button class="btn ghost" id="dialChat">💬 Chat</button>
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-weight:600;margin-bottom:4px">Recent</div>
+      <div class="list" id="recentList"></div>
+    </div>
+    <p class="credit">MeraCall · Built by <b>Pankaj Jaiswal</b></p>
+  </div>
+</div>
+
+<!-- 3. CHAT -->
+<div class="screen" id="chatScreen">
+  <header>
+    <button class="iconbtn" id="chatBack">←</button>
+    <div class="avatar" id="chatAvatar" style="width:38px;height:38px;font-size:15px"></div>
+    <div style="flex:1;min-width:0">
+      <h1 id="chatTitle" style="font-size:17px"></h1>
+      <div class="sub" id="chatSub"></div>
+    </div>
+    <button class="iconbtn" id="chatVoice">📞</button>
+    <button class="iconbtn" id="chatVideo">🎥</button>
+  </header>
+  <div id="msgs"></div>
+  <div class="composer">
+    <input id="msgInput" placeholder="Message likhein…" autocomplete="off">
+    <button id="sendBtn">➤</button>
+  </div>
+</div>
+
+<!-- 4. CALL -->
+<div class="screen" id="callScreen">
+  <video id="remoteVideo" autoplay playsinline></video>
+  <video id="localVideo" autoplay playsinline muted></video>
+  <audio id="remoteAudio" autoplay></audio>
+  <div class="callInfo" id="callInfo">
+    <div class="avatar big" id="callAvatar"></div>
+    <h2 id="callName"></h2>
+    <p id="callNumber"></p>
+    <p id="callStatus"></p>
+  </div>
+  <div class="callBtns" id="incomingBtns">
+    <button class="cbtn red" id="rejectBtn">✖<small>Reject</small></button>
+    <button class="cbtn green" id="acceptBtn">✔<small>Utha lo</small></button>
+  </div>
+  <div class="callBtns" id="activeBtns" style="display:none">
+    <button class="cbtn" id="muteBtn">🎤<small>Mute</small></button>
+    <button class="cbtn" id="speakerBtn">🔈<small>Speaker</small></button>
+    <button class="cbtn" id="camBtn">📷<small>Camera</small></button>
+    <button class="cbtn" id="flipBtn">🔄<small>Palto</small></button>
+    <button class="cbtn red" id="endBtn">✆<small>Kaato</small></button>
+  </div>
+</div>
+
+<!-- 5. SETTINGS -->
+<div class="screen" id="settingsScreen">
+  <header><button class="iconbtn" id="settingsBack">←</button><h1>Settings</h1></header>
+  <div class="content">
+    <div class="card">
+      <label style="margin-top:0">Naam badlein</label>
+      <input id="setName">
+      <div style="height:10px"></div>
+      <button class="btn" id="saveName">Save</button>
+    </div>
+    <div class="card">
+      <div style="font-weight:600">TURN server (optional)</div>
+      <p class="hint">Agar alag network (jaise Jio data ↔ Airtel data) par call connect nahi hoti, to yahan apna TURN server daalein. Free account metered.ca par banta hai.</p>
+      <label>TURN URL</label><input id="turnUrl" placeholder="turn:standard.relay.metered.ca:80">
+      <label>Username</label><input id="turnUser">
+      <label>Password</label><input id="turnPass">
+      <div style="height:10px"></div>
+      <button class="btn" id="saveTurn">Save &amp; restart</button>
+    </div>
+    <div class="card" style="text-align:center">
+      <div style="font-size:34px">📞</div>
+      <div style="font-weight:700;font-size:18px">MeraCall</div>
+      <div class="hint" id="aboutVer" style="margin-top:2px"></div>
+      <div style="margin-top:8px">Built by <b>Pankaj Jaiswal</b></div>
+    </div>
+    <div class="card">
+      <button class="btn red" id="logoutBtn">Number hatao (logout)</button>
+      <p class="hint">Isse aapka number is phone se hat jayega. Chats is phone par rahengi.</p>
+    </div>
+  </div>
+</div>
+
+<div id="modal"><div class="sheet">
+  <h3 id="modalTitle" style="margin:0 0 6px"></h3>
+  <p id="modalText" class="hint" style="font-size:14px"></p>
+  <div id="modalBtns"></div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<!-- PeerJS APK ke andar se (build ke waqt PC ne download kiya); na mile tabhi internet se -->
+<script src="peerjs.min.js"></script>
+<script>
+if (typeof Peer === 'undefined') document.write('<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"><\/script>');
+</script>
+<script>
+(function(){
+'use strict';
+
+// ================= Helpers =================
+const $ = id => document.getElementById(id);
+const PREFIX = 'meracall-91-';            // public server par ID collision se bachne ke liye
+const Native = window.Android || { setSpeaker(){}, callStarted(){}, callEnded(){}, ring(){}, reloadApp(){ location.reload(); },
+  incomingCall(){}, missedCall(){}, notifyMessage(){}, clearNotif(){}, isForeground(){ return true; }, takePending(){ return ''; } };
+const IS_APP = !!window.Android;
+let updatePending = false;
+// Naya UI download ho gaya — call na chal rahi ho to turant laga do, warna call ke baad
+window.onWebUpdate = function(){
+  if (call.state === 'idle') { toast('Naya update lag raha hai…'); setTimeout(()=>{ if (peer) peer.destroy(); Native.reloadApp(); }, 1200); }
+  else updatePending = true;
+};
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+function toast(t, ms){ const el=$('toast'); el.textContent=t; el.style.display='block'; clearTimeout(toast._t); toast._t=setTimeout(()=>el.style.display='none', ms||2500); }
+function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active', s.id===id)); current=id; }
+function initials(n){ return (n||'?').trim().charAt(0).toUpperCase(); }
+function fmtTime(ts){ const d=new Date(ts); return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
+function fmtDur(s){ const m=Math.floor(s/60), x=s%60; return (m<10?'0':'')+m+':'+(x<10?'0':'')+x; }
+function validNum(n){ return /^[6-9]\d{9}$/.test(n); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+let current = null;
+let me = store.get('me', null);          // {num, name}
+let peer = null;
+const conns = {};                         // number -> DataConnection
+let contacts = store.get('contacts', {}); // number -> {name, last, ts, unread}
+let chatWith = null;
+
+// ================= Config + Directory (kis number ke paas app hai) =================
+// Directory Firebase (Google ka free cloud) par hai — PC band ho tab bhi chalti hai.
+let cfg = {};
+try { cfg = JSON.parse(Native.getConfig ? Native.getConfig() : '{}') || {}; } catch(e) {}
+const APK_URL = cfg.apkUrl || '';
+const FB = (cfg.firebase || '').replace(/\/?$/, '/');
+const HAS_FB = !!cfg.firebase;
+let myDev = store.get('dev', null); if (!myDev) { myDev = uid() + uid(); store.set('dev', myDev); }
+let registered = new Set(store.get('registered', []));
+let phoneContacts = [];
+
+async function fb(path, opts){
+  if (!HAS_FB) throw new Error('no-fb');
+  const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), 10000);
+  try {
+    const r = await fetch(FB + path, Object.assign({ signal: ctl.signal, cache:'no-store' }, opts||{}));
+    if (!r.ok) throw new Error('HTTP '+r.status);
+    return await r.json();
+  } finally { clearTimeout(t); }
+}
+// Poori list koi nahi padh sakta (privacy): har contact ka number alag se check hota hai
+let refreshing = false;
+async function refreshRegistry(){
+  if (!HAS_FB || !me || refreshing) return;
+  refreshing = true;
+  try {
+    const checked = store.get('checked', {}), now = Date.now();
+    const todo = phoneContacts.map(c=>c.num).filter(n=> n !== me.num && !registered.has(n) && !(checked[n] && now - checked[n] < 12*3600*1000)).slice(0, 300);
+    for (let i = 0; i < todo.length; i += 10) {
+      await Promise.all(todo.slice(i, i+10).map(async n=>{
+        try { const u = await fb('users/'+n+'.json'); if (u) registered.add(n); else checked[n] = now; } catch(e) {}
+      }));
+    }
+    store.set('checked', checked);
+    store.set('registered', [...registered]);
+    renderContacts();
+  } finally { refreshing = false; }
+}
+async function registerMe(){
+  if (!HAS_FB || !me) return;
+  try { await fb('users/'+me.num+'.json', { method:'PUT', body: JSON.stringify({ dev: myDev, ts: { '.sv':'timestamp' } }) }); registered.add(me.num); } catch(e) {}
+}
+// true = app hai, false = app nahi, null = pata nahi (internet/Firebase nahi)
+async function hasApp(num){
+  if (registered.has(num) || (contacts[num] && contacts[num].onApp)) return true;
+  if (!HAS_FB) return null;
+  try { const u = await fb('users/'+num+'.json'); if (u) { registered.add(num); store.set('registered',[...registered]); } return !!u; }
+  catch(e) { return null; }
+}
+
+function contactName(num){
+  const pc = phoneContacts.find(c=>c.num===num);
+  if (pc) return pc.name;
+  return contacts[num] ? contacts[num].name : num;
+}
+
+// Number dalne par: app hai to call/chat, nahi to download link bhejo
+async function withApp(num, action){
+  num = String(num||'').replace(/\D/g,'').slice(-10);
+  if (!validNum(num)) return toast('Sahi 10 ank ka number daalein');
+  if (me && num === me.num) return toast('Ye aapka hi number hai 🙂');
+  const ok = await hasApp(num);
+  if (ok === false) return showInvite(num);
+  action(num);
+}
+
+function inviteText(){
+  return 'Namaste! Main MeraCall app use karta/karti hoon — free voice call, video call aur chat (Built by Pankaj Jaiswal).\n'
+       + 'Mujhse baat karne ke liye app download karein:\n' + APK_URL + '\n\nMera MeraCall number: ' + (me ? me.num : '');
+}
+function openUrl(u){ if (Native.openUrl) Native.openUrl(u); else window.open(u, '_blank'); }
+function showInvite(num){
+  const name = num ? contactName(num) : '';
+  const msg = encodeURIComponent(inviteText());
+  modal(num ? (name !== num ? name+' ('+num+')' : num) : 'App ka link bhejein',
+        num ? 'Ye number abhi MeraCall par nahi hai. Unhe download link bhejein — app install karte hi aap unhe call / video call / chat kar payenge.' : 'Kisi ko bhi MeraCall ka download link bhejein.',
+        [
+          num && { label:'🟢 WhatsApp par bhejein', cls:'green', fn:()=>openUrl('https://wa.me/91'+num+'?text='+msg) },
+          num && { label:'✉️ SMS bhejein', cls:'', fn:()=>openUrl('smsto:'+num+'?body='+msg) },
+          { label:'📤 Kisi aur app se', cls:'ghost', fn:()=>{ if (Native.share) Native.share(inviteText()); else openUrl('https://wa.me/?text='+msg); } },
+          { label:'Band karein', cls:'ghost', fn:()=>{} }
+        ].filter(Boolean));
+}
+function modal(title, text, btns){
+  $('modalTitle').textContent = title; $('modalText').textContent = text;
+  const box = $('modalBtns'); box.innerHTML = '';
+  btns.forEach(b=>{ const el = document.createElement('button'); el.className = 'btn '+(b.cls||''); el.textContent = b.label; el.onclick = ()=>{ $('modal').classList.remove('on'); b.fn(); }; box.appendChild(el); });
+  $('modal').classList.add('on');
+}
+
+function loadPhoneContacts(){
+  const allowed = Native.hasContactsPermission ? Native.hasContactsPermission() : false;
+  $('contactsPerm').style.display = allowed ? 'none' : 'block';
+  if (!allowed) { renderContacts(); return; }
+  try { phoneContacts = JSON.parse(Native.getContacts()) || []; } catch(e) { phoneContacts = []; }
+  renderContacts();
+}
+window.onContactsReady = loadPhoneContacts;
+
+function renderContacts(){
+  const onEl = $('onAppList'), invEl = $('inviteList'); if (!onEl) return;
+  const q = ($('contactSearch').value || '').toLowerCase().replace(/\s/g,'');
+  const match = c => !q || c.name.toLowerCase().replace(/\s/g,'').includes(q) || c.num.includes(q);
+  // app wale: phone contacts + jinse pehle baat hui
+  const map = {};
+  phoneContacts.forEach(c=>{ if (registered.has(c.num)) map[c.num] = c; });
+  Object.keys(contacts).forEach(n=>{ if (!map[n] && (registered.has(n) || contacts[n].onApp)) map[n] = { num:n, name:contacts[n].name }; });
+  const onApp = Object.values(map).filter(c=>c.num !== (me&&me.num) && match(c)).sort((a,b)=>a.name.localeCompare(b.name));
+  const others = phoneContacts.filter(c=>!map[c.num] && c.num !== (me&&me.num) && match(c));
+  $('onAppTitle').textContent = 'MeraCall par ('+onApp.length+')';
+  onEl.innerHTML = onApp.length ? onApp.map(c=>
+    '<div class="item" data-num="'+c.num+'"><div class="avatar">'+esc(initials(c.name))+'</div><div class="meta"><div class="name">'+esc(c.name)+'</div><div class="last">'+c.num+'</div></div>'+
+    '<button class="mini" data-act="voice">📞</button><button class="mini" data-act="video">🎥</button><button class="mini" data-act="chat">💬</button></div>').join('')
+    : '<div class="empty">'+(HAS_FB ? 'Aapke contacts me abhi kisi ke paas MeraCall nahi hai.<br>Neeche se invite bhejein 👇' : 'Firebase set nahi hai (README dekhein). Abhi sirf number daal kar call karein.')+'</div>';
+  const shown = others.slice(0, 80);
+  invEl.innerHTML = shown.length ? shown.map(c=>
+    '<div class="item" data-num="'+c.num+'"><div class="avatar" style="background:#eee;color:#888">'+esc(initials(c.name))+'</div><div class="meta"><div class="name">'+esc(c.name)+'</div><div class="last">'+c.num+'</div></div><button class="invite" data-act="invite">Invite</button></div>').join('')
+    + (others.length > 80 ? '<div class="empty">…aur '+(others.length-80)+' contacts. Upar khoj kar dhundein.</div>' : '')
+    : '<div class="empty">Koi contact nahi</div>';
+  [onEl, invEl].forEach(box=>box.querySelectorAll('.item').forEach(it=>{
+    it.onclick = e => {
+      const num = it.dataset.num, act = e.target.dataset && e.target.dataset.act;
+      if (act === 'voice') startCall(num, false);
+      else if (act === 'video') startCall(num, true);
+      else if (act === 'invite' || box === invEl) showInvite(num);
+      else openChat(num);
+    };
+  }));
+}
+
+// ================= ICE (alag network par connect karne ke liye) =================
+function iceServers(){
+  const list = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' }
+  ];
+  const t = store.get('turn', null);
+  if (t && t.url) {
+    const base = t.url.replace(/^turns?:/, '').split('?')[0];
+    list.push({ urls: [t.url, 'turn:'+base+'?transport=tcp'], username: t.user, credential: t.pass });
+  }
+  return list;
+}
+
+// ================= Peer (signalling) =================
+function startPeer(){
+  if (typeof Peer === 'undefined') { setStatus(false, 'Internet nahi hai'); setTimeout(()=>location.reload(), 5000); return; }
+  if (peer) { try{ peer.destroy(); }catch(e){} }
+  setStatus(false, 'Connect ho raha hai…');
+  peer = new Peer(PREFIX + me.num, { config: { iceServers: iceServers() }, debug: 0 });
+
+  peer.on('open', ()=> { setStatus(true, 'Online — call aa sakti hai'); flushPending(); });
+  peer.on('disconnected', ()=> { setStatus(false, 'Dobara connect ho raha hai…'); setTimeout(()=>{ if(peer && !peer.destroyed && peer.disconnected) peer.reconnect(); }, 2000); });
+  peer.on('close', ()=> setStatus(false, 'Offline'));
+  peer.on('error', err => {
+    const type = err.type;
+    if (type === 'unavailable-id') {
+      setStatus(false, 'Ye number kisi aur phone par chalu hai');
+      toast('Ye number pehle se kisi aur phone par online hai. 10 sec baad dobara try karenge.', 4000);
+      setTimeout(startPeer, 10000);
+    } else if (type === 'peer-unavailable') {
+      const m = /meracall-91-(\d{10})/.exec(err.message||'');
+      const n = m ? m[1] : null;
+      if (call.state === 'outgoing' && (!n || n === call.num)) endCall('User abhi offline hai', true);
+      else if (n && conns[n]) { delete conns[n]; }
+      if (current === 'chatScreen' && n === chatWith) $('chatSub').textContent = 'Offline — message online aane par jayega';
+    } else if (type === 'network' || type === 'server-error' || type === 'socket-error' || type === 'socket-closed') {
+      setStatus(false, 'Network problem, dobara try…');
+      setTimeout(()=>{ if(!peer || peer.destroyed || peer.disconnected) startPeer(); }, 4000);
+    } else {
+      console.log('peer error', type, err);
+    }
+  });
+
+  peer.on('connection', c => setupConn(c));
+  peer.on('call', mc => onIncomingCall(mc));
+}
+
+function setStatus(on, text){ $('statusDot').classList.toggle('on', on); $('statusText').textContent = text; }
+window.addEventListener('online', ()=>{ if(!peer || peer.destroyed) startPeer(); else if (peer.disconnected) peer.reconnect(); });
+
+// ================= Data connection (chat + call control) =================
+function getConn(num){
+  const c = conns[num];
+  if (c && (c.open || c._opening)) return c;
+  if (!peer || !peer.open) return null;
+  const nc = peer.connect(PREFIX + num, { reliable: true, metadata: { name: me.name } });
+  nc._opening = true;
+  setupConn(nc);
+  return nc;
+}
+
+function setupConn(c){
+  const num = c.peer.replace(PREFIX, '');
+  conns[num] = c;
+  c.on('open', ()=>{
+    c._opening = false;
+    if (c.metadata && c.metadata.name) touchContact(num, c.metadata.name);
+    send(num, { t:'hello', name: me.name });
+    flushPending(num);
+    if (current === 'chatScreen' && chatWith === num) $('chatSub').textContent = 'Online';
+  });
+  c.on('data', d => onData(num, d));
+  c.on('close', ()=>{ if (conns[num] === c) delete conns[num]; if (current==='chatScreen' && chatWith===num) $('chatSub').textContent=''; });
+  c.on('error', ()=>{ if (conns[num] === c) delete conns[num]; });
+}
+
+function send(num, obj){
+  const c = conns[num];
+  if (c && c.open) { try{ c.send(obj); return true; }catch(e){} }
+  return false;
+}
+
+function onData(num, d){
+  if (!d || typeof d !== 'object') return;
+  switch(d.t){
+    case 'hello': { const c = touchContact(num, d.name); if (!c.onApp) { c.onApp = true; saveContacts(); registered.add(num); renderContacts(); } break; }
+    case 'msg': {
+      const msgs = getMsgs(num);
+      if (!msgs.find(m=>m.id===d.id)) {
+        msgs.push({ id:d.id, from:'them', text:String(d.text).slice(0,4000), ts:d.ts||Date.now() });
+        saveMsgs(num, msgs);
+        const ct = touchContact(num, d.name, d.text);
+        const viewing = current==='chatScreen' && chatWith===num && Native.isForeground();
+        if (!viewing) {
+          ct.unread=(ct.unread||0)+1; saveContacts();
+          if (Native.isForeground()) toast('💬 '+contactName(num)+': '+d.text);
+          Native.notifyMessage(num, contactName(num), String(d.text).slice(0,300));
+        }
+        if (current==='chatScreen' && chatWith===num) renderMsgs();
+        renderRecent();
+      }
+      send(num, { t:'ack', id:d.id });
+      break;
+    }
+    case 'ack': {
+      const msgs = getMsgs(num); const m = msgs.find(x=>x.id===d.id);
+      if (m && !m.ok) { m.ok = true; saveMsgs(num, msgs); if (current==='chatScreen' && chatWith===num) renderMsgs(); }
+      break;
+    }
+    case 'end': case 'reject': case 'busy':
+      if (call.num === num && call.state !== 'idle') {
+        endCall(d.t==='reject' ? 'Call reject ho gayi' : d.t==='busy' ? 'User doosri call par hai' : 'Call khatam', true);
+      }
+      break;
+  }
+}
+
+// ================= Contacts & messages =================
+function saveContacts(){ store.set('contacts', contacts); }
+function touchContact(num, name, last){
+  const c = contacts[num] || { name: contactName(num), ts: Date.now() };
+  const pc = phoneContacts.find(p=>p.num===num);
+  if (pc) c.name = pc.name; else if (name) c.name = name;
+  if (last !== undefined) { c.last = last; c.ts = Date.now(); }
+  contacts[num] = c; saveContacts(); renderRecent();
+  return c;
+}
+function getMsgs(num){ return store.get('msgs_'+num, []); }
+function saveMsgs(num, m){ store.set('msgs_'+num, m.slice(-500)); }
+
+function flushPending(onlyNum){
+  Object.keys(contacts).forEach(num=>{
+    if (onlyNum && num !== onlyNum) return;
+    const pend = getMsgs(num).filter(m=>m.from==='me' && !m.ok);
+    if (!pend.length) return;
+    const c = conns[num];
+    if (c && c.open) pend.forEach(m=>send(num, { t:'msg', id:m.id, text:m.text, ts:m.ts, name:me.name }));
+    else if (!onlyNum) getConn(num);
+  });
+}
+
+function renderRecent(){
+  const el = $('recentList'); if (!el) return;
+  const nums = Object.keys(contacts).sort((a,b)=>(contacts[b].ts||0)-(contacts[a].ts||0));
+  if (!nums.length) { el.innerHTML = '<div class="empty">Abhi koi chat ya call nahi.<br>Upar number daal kar shuru karein.</div>'; return; }
+  el.innerHTML = nums.map(n=>{
+    const c = contacts[n];
+    return '<div class="item" data-num="'+n+'"><div class="avatar">'+esc(initials(c.name))+'</div><div class="meta"><div class="name">'+esc(c.name)+(c.unread?'<span class="badge">'+c.unread+'</span>':'')+'</div><div class="last">'+esc(c.name!==n?n+' · ':'')+esc(c.last||'')+'</div></div><div class="time">'+(c.ts?fmtTime(c.ts):'')+'</div></div>';
+  }).join('');
+  el.querySelectorAll('.item').forEach(it=>it.onclick=()=>openChat(it.dataset.num));
+}
+
+// ================= Chat screen =================
+function openChat(num){
+  chatWith = num;
+  Native.clearNotif(num);
+  const c = touchContact(num);
+  c.unread = 0; saveContacts(); renderRecent();
+  $('chatTitle').textContent = c.name;
+  $('chatAvatar').textContent = initials(c.name);
+  $('chatSub').textContent = num;
+  show('chatScreen');
+  renderMsgs();
+  const conn = getConn(num);
+  if (conn && conn.open) $('chatSub').textContent = 'Online';
+}
+
+function renderMsgs(){
+  const msgs = getMsgs(chatWith);
+  const el = $('msgs');
+  el.innerHTML = msgs.length ? msgs.map(m=>{
+    if (m.from==='sys') return '<div class="sys">'+esc(m.text)+' · '+fmtTime(m.ts)+'</div>';
+    return '<div class="msg '+(m.from==='me'?'me':'them')+'">'+esc(m.text)+'<div class="t">'+fmtTime(m.ts)+(m.from==='me'?(m.ok?' ✓✓':' 🕓'):'')+'</div></div>';
+  }).join('') : '<div class="sys">Pehla message bhejein 👋</div>';
+  el.scrollTop = el.scrollHeight;
+}
+
+function sendMsg(){
+  const text = $('msgInput').value.trim();
+  if (!text || !chatWith) return;
+  $('msgInput').value = '';
+  const m = { id: uid(), from:'me', text, ts: Date.now(), ok:false };
+  const msgs = getMsgs(chatWith); msgs.push(m); saveMsgs(chatWith, msgs);
+  touchContact(chatWith, null, 'Aap: '+text);
+  renderMsgs();
+  if (!send(chatWith, { t:'msg', id:m.id, text, ts:m.ts, name:me.name })) getConn(chatWith);
+}
+
+function logCall(num, text){
+  const msgs = getMsgs(num); msgs.push({ id:uid(), from:'sys', text, ts:Date.now() }); saveMsgs(num, msgs);
+  touchContact(num, null, text);
+  if (current==='chatScreen' && chatWith===num) renderMsgs();
+}
+
+// ================= Calls =================
+const call = { state:'idle', num:null, video:false, mc:null, local:null, timer:null, start:0, ringTimer:null, muted:false, camOff:false, speaker:false, facing:'user', incoming:false };
+
+async function getMedia(video){
+  const c = { audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:true },
+              video: video ? { facingMode: call.facing, width:{ideal:640}, height:{ideal:480} } : false };
+  return navigator.mediaDevices.getUserMedia(c);
+}
+
+function callUI(num, video, status, incoming){
+  const c = contacts[num] || { name:num };
+  $('callAvatar').textContent = initials(c.name);
+  $('callName').textContent = c.name;
+  $('callNumber').textContent = (video ? '🎥 Video call · ' : '📞 Voice call · ') + num;
+  $('callStatus').textContent = status;
+  $('incomingBtns').style.display = incoming ? 'flex' : 'none';
+  $('activeBtns').style.display = incoming ? 'none' : 'flex';
+  $('camBtn').style.display = video ? '' : 'none';
+  $('flipBtn').style.display = video ? '' : 'none';
+  $('localVideo').style.display = 'none';
+  $('remoteVideo').style.display = 'none';
+  $('callInfo').style.display = '';
+  ['muteBtn','camBtn','speakerBtn'].forEach(b=>$(b).classList.remove('off'));
+  show('callScreen');
+}
+
+async function startCall(num, video){
+  if (!validNum(num)) return toast('Sahi 10 ank ka number daalein');
+  if (num === me.num) return toast('Apne aap ko call nahi kar sakte 🙂');
+  if (!peer || !peer.open) return toast('Abhi online nahi hain, thoda ruk kar try karein');
+  if (call.state !== 'idle') return;
+  touchContact(num);
+  Object.assign(call, { state:'outgoing', num, video, incoming:false, selfReject:false, muted:false, camOff:false, speaker:video, facing:'user' });
+  callUI(num, video, 'Call lag rahi hai…', false);
+  getConn(num);
+  try { call.local = await getMedia(video); }
+  catch(e){ endCall('Mic/Camera permission nahi mili', true); return; }
+  if (call.state !== 'outgoing') { stopLocal(); return; }
+  showLocal();
+  Native.callStarted(); Native.setSpeaker(call.speaker); updateSpeakerBtn();
+  const mc = peer.call(PREFIX + num, call.local, { metadata: { video, name: me.name } });
+  if (!mc) { endCall('Call nahi lag payi', true); return; }
+  call.mc = mc;
+  $('callStatus').textContent = 'Ghanti baj rahi hai…';
+  wireMedia(mc);
+  call.ringTimer = setTimeout(()=>{ if (call.state==='outgoing') { send(num,{t:'end'}); endCall('Kisi ne nahi uthaya', true); } }, 45000);
+}
+
+function onIncomingCall(mc){
+  const num = mc.peer.replace(PREFIX, '');
+  const meta = mc.metadata || {};
+  if (call.state !== 'idle') { // already doosri call par
+    getConn(num); setTimeout(()=>send(num,{t:'busy'}), 800);
+    try{ mc.close(); }catch(e){}
+    logCall(num, 'Missed call (aap busy the)');
+    return;
+  }
+  if (meta.name) touchContact(num, meta.name);
+  Object.assign(call, { state:'ringing', num, video:!!meta.video, mc, incoming:true, selfReject:false, muted:false, camOff:false, speaker:!!meta.video, facing:'user' });
+  callUI(num, call.video, 'Aapko call aa rahi hai…', true);
+  if (IS_APP) Native.incomingCall(num, contactName(num), call.video); else playRing(true);
+  getConn(num);
+  wireMedia(mc);
+  call.ringTimer = setTimeout(()=>{ if (call.state==='ringing') { send(num,{t:'reject'}); endCall('Missed call', false, true); } }, 45000);
+}
+
+async function acceptCall(){
+  if (call.state !== 'ringing') return;
+  Native.ring(false); playRing(false);
+  $('incomingBtns').style.display='none'; $('activeBtns').style.display='flex';
+  $('callStatus').textContent = 'Jud raha hai…';
+  try { call.local = await getMedia(call.video); }
+  catch(e){ send(call.num,{t:'reject'}); call.selfReject = true; endCall('Mic/Camera permission nahi mili', true); return; }
+  showLocal();
+  Native.callStarted(); Native.setSpeaker(call.speaker); updateSpeakerBtn();
+  call.mc.answer(call.local);
+}
+
+function rejectCall(){
+  if (call.state !== 'ringing') return;
+  send(call.num, { t:'reject' });
+  call.selfReject = true;
+  endCall('Call reject ki', false);
+}
+
+function wireMedia(mc){
+  mc.on('stream', remote => {
+    if (call.mc !== mc) return;
+    clearTimeout(call.ringTimer);
+    call.state = 'active';
+    if (call.video) {
+      const rv = $('remoteVideo'); rv.srcObject = remote; rv.style.display='block';
+      $('callInfo').style.display='none';
+    } else {
+      $('remoteAudio').srcObject = remote;
+    }
+    call.start = Date.now();
+    clearInterval(call.timer);
+    call.timer = setInterval(()=>{ $('callStatus').textContent = fmtDur(Math.floor((Date.now()-call.start)/1000)); }, 1000);
+    $('callStatus').textContent = '00:00';
+    watchIce(mc);
+  });
+  mc.on('close', ()=>{ if (call.mc === mc && call.state !== 'idle') endCall('Call khatam', true); });
+  mc.on('error', ()=>{ if (call.mc === mc && call.state !== 'idle') endCall('Call me problem aayi', true); });
+}
+
+function watchIce(mc){
+  const pc = mc.peerConnection; if (!pc) return;
+  let t = null;
+  pc.oniceconnectionstatechange = ()=>{
+    const s = pc.iceConnectionState;
+    if (s === 'disconnected') { $('callStatus').textContent = 'Network kamzor… dobara jud raha hai'; t = setTimeout(()=>{ if (pc.iceConnectionState!=='connected' && pc.iceConnectionState!=='completed') endCall('Connection toot gaya', true); }, 12000); }
+    else if (s === 'failed') endCall('Connection nahi ban paya (TURN server settings me daalein)', true);
+    else if (s === 'connected' || s === 'completed') clearTimeout(t);
+  };
+}
+
+function showLocal(){
+  if (call.video && call.local) { const lv=$('localVideo'); lv.srcObject = call.local; lv.style.display='block'; lv.style.transform = call.facing==='user'?'scaleX(-1)':'none'; }
+}
+function stopLocal(){ if (call.local) { call.local.getTracks().forEach(t=>t.stop()); call.local = null; } }
+
+function endCall(reason, notifyLocal, missed){
+  if (call.state === 'idle') return;
+  const num = call.num, wasActive = call.state === 'active', dur = wasActive ? Math.floor((Date.now()-call.start)/1000) : 0;
+  const kind = call.video ? 'Video call' : 'Voice call';
+  // Ghanti baj rahi thi aur maine nahi uthayi/kaati => missed call
+  if (call.incoming && call.state === 'ringing' && !call.selfReject) missed = true;
+  clearTimeout(call.ringTimer); clearInterval(call.timer);
+  Native.ring(false); playRing(false); Native.callEnded();
+  try{ call.mc && call.mc.close(); }catch(e){}
+  stopLocal();
+  $('remoteVideo').srcObject = null; $('remoteAudio').srcObject = null; $('localVideo').srcObject = null;
+  call.state = 'idle'; call.mc = null;
+  if (wasActive) logCall(num, kind+' · '+fmtDur(dur));
+  else if (missed && call.incoming) { logCall(num, 'Missed '+kind); Native.missedCall(num, contactName(num), call.video); }
+  else if (call.selfReject) logCall(num, kind+' · aapne kaati');
+  else logCall(num, kind+' · '+(reason||'nahi lagi'));
+  if (reason) toast(reason);
+  call.num = null;
+  setTimeout(()=>{ if (call.state==='idle') show(chatWith===num ? 'chatScreen' : 'homeScreen'); }, wasActive ? 300 : 1200);
+  if (updatePending) { updatePending = false; setTimeout(window.onWebUpdate, 2500); }
+}
+
+function hangup(){
+  if (call.state === 'idle') return;
+  send(call.num, { t:'end' });
+  endCall(null, false);
+}
+
+function toggleMute(){
+  if (!call.local) return;
+  call.muted = !call.muted;
+  call.local.getAudioTracks().forEach(t=>t.enabled = !call.muted);
+  $('muteBtn').classList.toggle('off', call.muted);
+}
+function toggleCam(){
+  if (!call.local) return;
+  call.camOff = !call.camOff;
+  call.local.getVideoTracks().forEach(t=>t.enabled = !call.camOff);
+  $('camBtn').classList.toggle('off', call.camOff);
+}
+function toggleSpeaker(){ call.speaker = !call.speaker; Native.setSpeaker(call.speaker); updateSpeakerBtn(); }
+function updateSpeakerBtn(){ $('speakerBtn').classList.toggle('off', call.speaker); }
+
+async function flipCam(){
+  if (!call.local || !call.video) return;
+  call.facing = call.facing === 'user' ? 'environment' : 'user';
+  try {
+    const ns = await navigator.mediaDevices.getUserMedia({ video: { facingMode: call.facing } });
+    const nt = ns.getVideoTracks()[0];
+    const old = call.local.getVideoTracks()[0];
+    const sender = call.mc && call.mc.peerConnection && call.mc.peerConnection.getSenders().find(s=>s.track && s.track.kind==='video');
+    if (sender) await sender.replaceTrack(nt);
+    if (old) { call.local.removeTrack(old); old.stop(); }
+    call.local.addTrack(nt);
+    nt.enabled = !call.camOff;
+    showLocal();
+  } catch(e){ toast('Camera badal nahi paya'); call.facing = call.facing === 'user' ? 'environment' : 'user'; }
+}
+
+// Ringtone (bina file ke, phone jaisi awaaz)
+let ringCtx = null, ringInt = null;
+function playRing(on){
+  if (!on) { clearInterval(ringInt); ringInt = null; if (ringCtx) { try{ringCtx.close();}catch(e){} ringCtx=null; } return; }
+  try {
+    ringCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const beep = ()=>{
+      if (!ringCtx) return;
+      [0, 0.45].forEach(off=>{
+        const o = ringCtx.createOscillator(), g = ringCtx.createGain();
+        o.frequency.value = 440; o.connect(g); g.connect(ringCtx.destination);
+        const t = ringCtx.currentTime + off;
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.4, t+0.03);
+        g.gain.exponentialRampToValueAtTime(0.0001, t+0.4);
+        o.start(t); o.stop(t+0.42);
+      });
+    };
+    beep(); ringInt = setInterval(beep, 2500);
+  } catch(e){}
+}
+
+// ================= Wiring =================
+$('setupBtn').onclick = async ()=>{
+  const name = $('setupName').value.trim(), num = $('setupNum').value.replace(/\D/g,'');
+  if (!name) return $('setupErr').textContent = 'Naam daalein';
+  if (!validNum(num)) return $('setupErr').textContent = 'Sahi 10 ank ka mobile number daalein (6-9 se shuru)';
+  // Ek number sirf ek phone par: directory me pehle se kisi aur phone ka ho to mana
+  if (HAS_FB) {
+    $('setupBtn').disabled = true; $('setupErr').textContent = 'Check ho raha hai…';
+    try {
+      const u = await fb('users/'+num+'.json');
+      if (u && u.dev && u.dev !== myDev) { $('setupErr').textContent = 'Ye number pehle se kisi aur phone par MeraCall me registered hai.'; $('setupBtn').disabled = false; return; }
+    } catch(e) { $('setupErr').textContent = 'Internet check karein aur dobara try karein'; $('setupBtn').disabled = false; return; }
+    $('setupBtn').disabled = false;
+  }
+  $('setupErr').textContent = '';
+  me = { name, num }; store.set('me', me);
+  boot();
+};
+$('dialVoice').onclick = ()=> withApp($('dialNum').value, n=>startCall(n, false));
+$('dialVideo').onclick = ()=> withApp($('dialNum').value, n=>startCall(n, true));
+$('dialChat').onclick = ()=> withApp($('dialNum').value, n=>openChat(n));
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on', x===b));
+  document.querySelectorAll('.tabpane').forEach(p=>p.classList.toggle('on', p.id===b.dataset.tab));
+  if (b.dataset.tab==='tabContacts') { loadPhoneContacts(); refreshRegistry(); }
+});
+$('contactSearch').addEventListener('input', renderContacts);
+$('contactsPermBtn').onclick = ()=> Native.askContacts && Native.askContacts();
+$('inviteAnyBtn').onclick = ()=> showInvite(null);
+$('modal').onclick = e=>{ if (e.target.id==='modal') $('modal').classList.remove('on'); };
+$('chatBack').onclick = ()=> { chatWith = null; show('homeScreen'); renderRecent(); };
+$('chatVoice').onclick = ()=> startCall(chatWith, false);
+$('chatVideo').onclick = ()=> startCall(chatWith, true);
+$('sendBtn').onclick = sendMsg;
+$('msgInput').addEventListener('keydown', e=>{ if (e.key==='Enter') sendMsg(); });
+$('acceptBtn').onclick = acceptCall;
+$('rejectBtn').onclick = rejectCall;
+$('endBtn').onclick = hangup;
+$('muteBtn').onclick = toggleMute;
+$('camBtn').onclick = toggleCam;
+$('flipBtn').onclick = flipCam;
+$('speakerBtn').onclick = toggleSpeaker;
+$('settingsBtn').onclick = ()=>{
+  $('setName').value = me.name;
+  $('aboutVer').textContent = 'Version ' + (cfg.version || '1.0');
+  const t = store.get('turn', {}) || {};
+  $('turnUrl').value = t.url||''; $('turnUser').value = t.user||''; $('turnPass').value = t.pass||'';
+  show('settingsScreen');
+};
+$('settingsBack').onclick = ()=> show('homeScreen');
+$('saveName').onclick = ()=>{ const n=$('setName').value.trim(); if(!n) return; me.name=n; store.set('me',me); $('myName').textContent=n; toast('Naam save ho gaya'); };
+$('saveTurn').onclick = ()=>{ store.set('turn', { url:$('turnUrl').value.trim(), user:$('turnUser').value.trim(), pass:$('turnPass').value.trim() }); toast('Save ho gaya'); startPeer(); show('homeScreen'); };
+$('logoutBtn').onclick = async ()=>{
+  if (HAS_FB && me) { try { const u = await fb('users/'+me.num+'.json'); if (u && u.dev === myDev) await fb('users/'+me.num+'.json', { method:'DELETE' }); } catch(e) {} }
+  if (peer) peer.destroy(); localStorage.removeItem('me'); me=null; show('setupScreen');
+};
+
+// Notification ke button: Utha lo / Kaato / chat kholo
+window.nativeAction = function(act, arg){
+  try { Native.takePending(); } catch(e) {}
+  if (act === 'accept') { if (call.state === 'ringing') { show('callScreen'); acceptCall(); } }
+  else if (act === 'reject') { if (call.state === 'ringing') rejectCall(); }
+  else if (act === 'ring') { if (call.state === 'ringing') show('callScreen'); }
+  else if (act === 'chat') { if (me && validNum(arg) && call.state === 'idle') openChat(arg); }
+};
+
+// Back button (Android) — true return karne par app background me nahi jayega
+window.onAndroidBack = function(){
+  if ($('modal').classList.contains('on')) { $('modal').classList.remove('on'); return true; }
+  if (current === 'callScreen') return true;
+  if (current === 'chatScreen' || current === 'settingsScreen') { chatWith=null; show('homeScreen'); renderRecent(); return true; }
+  return false;
+};
+
+function boot(){
+  if (!me) { show('setupScreen'); return; }
+  $('myNumber').textContent = me.num.replace(/(\d{5})(\d{5})/, '$1 $2');
+  $('myName').textContent = me.name;
+  show('homeScreen');
+  renderRecent();
+  startPeer();
+  registerMe();
+  loadPhoneContacts();
+  refreshRegistry();
+  const p = String(Native.takePending() || '');
+  if (p) { const [a, b] = p.split(':'); setTimeout(()=>window.nativeAction(a, b), 400); }
+}
+setInterval(()=>{ if (me) refreshRegistry(); }, 5*60*1000);
+// Connection zinda rakho
+setInterval(()=>{ if (me && peer && !peer.destroyed && peer.disconnected) peer.reconnect(); }, 15000);
+
+boot();
+})();
+</script>
+</body>
+</html>
