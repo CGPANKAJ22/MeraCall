@@ -180,7 +180,7 @@
         <button class="btn ghost" id="stTextBtn">✏️ Text status</button>
         <button class="btn" id="stPhotoBtn">📷 Photo status</button>
       </div>
-      <p class="hint" id="stHint">Status 24 ghante baad apne aap hat jata hai. Jinke paas aapka number hai, wo dekh sakte hain.</p>
+      <p class="hint" id="stHint">Status 12 ghante baad apne aap hat jata hai. Jinke paas aapka number hai, wo dekh sakte hain.</p>
     </div>
     <div class="secTitle">Haal ke updates</div>
     <div class="list card" id="statusList" style="padding:4px 12px"></div>
@@ -406,6 +406,15 @@
       <label>Password</label><input id="turnPass">
       <div style="height:10px"></div>
       <button class="btn" id="saveTurn">Save &amp; restart</button>
+    </div>
+    <div class="card" id="webCard">
+      <div style="font-weight:600">💻 MeraCall Web (PC par chalayein)</div>
+      <p class="hint">PC ke browser me <b id="webUrl">MeraCall Web</b> kholiye. Wahan dikh raha 16 akshar ka code yahan daaliye.</p>
+      <input id="webCode" placeholder="ABCD-EFGH-JKLM-NPQR" maxlength="19" autocapitalize="characters" autocomplete="off">
+      <div style="height:8px"></div>
+      <button class="btn" id="webLinkBtn">PC jodein</button>
+      <p class="hint" id="webMsg"></p>
+      <div class="list" id="webList"></div>
     </div>
     <div class="card" id="chPassCard" style="display:none">
       <div style="font-weight:600">Password badlein</div>
@@ -737,7 +746,7 @@ function startPeer(){
   setStatus(false, 'Connect ho raha hai…');
   peer = new Peer(PREFIX + me.num, { config: { iceServers: iceServers() }, debug: 0 });
 
-  peer.on('open', ()=> { setStatus(true, 'Online — call aa sakti hai'); flushPending(); });
+  peer.on('open', ()=> { setStatus(true, 'Online — call aa sakti hai'); flushPending(); webLinks.forEach(connectWeb); });
   peer.on('disconnected', ()=> { setStatus(false, 'Dobara connect ho raha hai…'); setTimeout(()=>{ if(peer && !peer.destroyed && peer.disconnected) peer.reconnect(); }, 2000); });
   peer.on('close', ()=> setStatus(false, 'Offline'));
   peer.on('error', err => {
@@ -747,6 +756,8 @@ function startPeer(){
       toast('Ye number pehle se kisi aur phone par online hai. 10 sec baad dobara try karenge.', 4000);
       setTimeout(startPeer, 10000);
     } else if (type === 'peer-unavailable') {
+      const wm = /(mcweb-[a-z0-9]{8})/.exec(err.message||'');
+      if (wm) { delete webConns[wm[1]]; renderWebLinks(); return; }     // PC band hai: call se koi lena-dena nahi
       const m = /meracall-91-(\d{10})/.exec(err.message||'');
       const n = m ? m[1] : null;
       if (call.state === 'outgoing' && (!n || n === call.num)) endCall('User abhi offline hai', true);
@@ -760,7 +771,7 @@ function startPeer(){
     }
   });
 
-  peer.on('connection', c => (c.metadata && c.metadata.lane) ? setupLane(c) : setupConn(c));
+  peer.on('connection', c => { if (!String(c.peer).startsWith(PREFIX)) { try { c.close(); } catch(e) {} return; } (c.metadata && c.metadata.lane) ? setupLane(c) : setupConn(c); });
   peer.on('call', mc => onIncomingCall(mc));
 }
 
@@ -870,7 +881,7 @@ function onData(num, d){
 }
 
 // ================= Contacts & messages =================
-function saveContacts(){ store.set('contacts', contacts); }
+function saveContacts(){ store.set('contacts', contacts); webNotify('list'); }
 function touchContact(num, name, last){
   const c = contacts[num] || { name: contactName(num), ts: Date.now() };
   const pc = phoneContacts.find(p=>p.num===num);
@@ -880,7 +891,7 @@ function touchContact(num, name, last){
   return c;
 }
 function getMsgs(num){ return store.get('msgs_'+num, []); }
-function saveMsgs(num, m){ store.set('msgs_'+num, m.slice(-500)); }
+function saveMsgs(num, m){ store.set('msgs_'+num, m.slice(-500)); webNotify(num); }
 
 function flushPending(onlyNum){
   Object.keys(contacts).forEach(num=>{
@@ -950,11 +961,15 @@ function sendMsg(){
   if (text && chatGroup) { $('msgInput').value = ''; return sendGroupMsg(text); }
   if (!text || !chatWith) return;
   $('msgInput').value = '';
-  const m = { id: uid(), from:'me', text, ts: Date.now(), ok:false };
-  const msgs = getMsgs(chatWith); msgs.push(m); saveMsgs(chatWith, msgs);
-  touchContact(chatWith, null, 'Aap: '+text);
-  renderMsgs();
-  if (!send(chatWith, { t:'msg', id:m.id, text, ts:m.ts, name:me.name })) getConn(chatWith);
+  sendTextTo(chatWith, text);
+}
+/** Kisi number ko text (phone se ya PC/Web se) */
+function sendTextTo(num, text){
+  const m = { id: uid(), from:'me', text: String(text).slice(0, 4000), ts: Date.now(), ok:false };
+  const msgs = getMsgs(num); msgs.push(m); saveMsgs(num, msgs);
+  touchContact(num, null, 'Aap: '+m.text);
+  if (current === 'chatScreen' && chatWith === num) renderMsgs();
+  if (!send(num, { t:'msg', id:m.id, text:m.text, ts:m.ts, name:me.name })) getConn(num);
 }
 
 // ================= DP (profile photo) =================
@@ -1023,8 +1038,8 @@ async function delMyDp(){
   dpCache[me.num] = { img:'', at: Date.now() }; store.set('dpc', dpCache); refreshAvatars(); $('dpMsg').textContent = 'DP hata di';
 }
 
-// ================= Status: text + photo (Firebase, 24 ghante) =================
-const DAY = 24*3600*1000;
+// ================= Status: text + photo (Firebase, 12 ghante) =================
+const DAY = 12*3600*1000;   // status 12 ghante rehta hai
 const ST_COLORS = ['#0A7CFF', '#1fb760', '#e8590c', '#ae3ec9', '#e03131', '#1b1f29', '#c2255c'];
 let stSeen = store.get('stSeen', {});     // "num/sid" -> 1
 let stFeed = {};                           // num -> [ {sid, type, text, bg, ts, img?} ]
@@ -1061,7 +1076,7 @@ async function loadStatuses(){
     renderStatusList();
   } finally { stLoading = false; }
 }
-/** Apne 24 ghante purane status mitao */
+/** Apne 12 ghante purane status mitao */
 async function cleanupMine(){
   if (!HAS_AUTH || !me) return;
   try {
@@ -1624,9 +1639,9 @@ function flushDeletes(num){
 let groups = store.get('groups', {});
 let chatGroup = null;
 const GMAX = 50;
-function saveGroups(){ store.set('groups', groups); }
+function saveGroups(){ store.set('groups', groups); webNotify('list'); }
 function gMsgs(gid){ return store.get('gm_' + gid, []); }
-function saveGMsgs(gid, list){ store.set('gm_' + gid, list.slice(-500)); }
+function saveGMsgs(gid, list){ store.set('gm_' + gid, list.slice(-500)); webNotify('g:' + gid); }
 function isGid(g){ return typeof g === 'string' && /^g[a-z0-9]{8,30}$/.test(g); }
 function others(g){ return (g.members || []).filter(n=>n !== me.num); }
 function gSys(gid, text){ const l = gMsgs(gid); l.push({ id: uid(), from:'sys', text, ts: Date.now() }); saveGMsgs(gid, l); }
@@ -1672,12 +1687,13 @@ function sendGroupStuff(num){
 }
 function pushGroup(g){ others(g).forEach(n=>{ if (!sendGroupStuff(n)) getConn(n); }); }
 
-function sendGroupMsg(text){
-  const g = groups[chatGroup]; if (!g || g.left || g.removed) return toast('Aap is group me nahi hain');
+function sendGroupMsg(text, gid){
+  const g = groups[gid || chatGroup]; if (!g || g.left || g.removed) return toast('Aap is group me nahi hain');
   const m = { id: uid() + uid(), from: me.num, text: text.slice(0, 4000), ts: Date.now(), ok: {}, seen: {} };
   const list = gMsgs(g.id); list.push(m); saveGMsgs(g.id, list);
   touchGroup(g.id, 'Aap: ' + text);
-  renderMsgs(); pushGroup(g);
+  if (current === 'chatScreen' && chatGroup === g.id) renderMsgs();
+  pushGroup(g);
 }
 
 /** Aane wale group sandesh */
@@ -1881,6 +1897,89 @@ function leaveGroup(){
     } },
     { label:'Nahi', cls:'ghost', fn:()=>{} } ]);
 }
+
+// ================= MeraCall Web (PC) — phone se juda, WhatsApp Web jaisa =================
+// PC page ek code dikhata hai (8 akshar ID + 8 akshar chaabi). Phone code se PC ko khud jodta hai;
+// chaabi milne par hi PC ko chat dikhti hai. Message phone se hi jaate hain (phone online hona chahiye).
+let webLinks = store.get('webLinks', []);   // [{ pid, key, at }]
+const webConns = {};
+function webPageUrl(){ const m = /githubusercontent\.com\/([^/]+)\/([^/]+)\//.exec(cfg.apkUrl || ''); return m ? 'https://' + m[1].toLowerCase() + '.github.io/' + m[2] + '/web/' : ''; }
+function parseWebCode(code){ const c = String(code || '').toLowerCase().replace(/[^a-z0-9]/g, ''); return c.length === 16 ? { pid: 'mcweb-' + c.slice(0, 8), key: c.slice(8) } : null; }
+function linkWeb(code){
+  const l = parseWebCode(code); if (!l) return 'Code 16 akshar ka hota hai (jaise ABCD-EFGH-JKLM-NPQR)';
+  if (!webLinks.find(x=>x.pid === l.pid) && webLinks.length >= 3) return 'Zyada se zyada 3 PC jod sakte hain. Pehle koi hatao.';
+  webLinks = webLinks.filter(x=>x.pid !== l.pid).concat([Object.assign(l, { at: Date.now() })]);
+  store.set('webLinks', webLinks); connectWeb(l); renderWebLinks(); return '';
+}
+function unlinkWeb(pid){
+  const c = webConns[pid]; if (c) { try { c.send({ t:'w_bye' }); } catch(e) {} setTimeout(()=>{ try { c.close(); } catch(e) {} }, 300); delete webConns[pid]; }
+  webLinks = webLinks.filter(x=>x.pid !== pid); store.set('webLinks', webLinks); renderWebLinks();
+}
+function connectWeb(l){
+  if (!peer || !peer.open || mustUpd || !me) return;
+  const ex = webConns[l.pid]; if (ex && (ex.open || Date.now() - (ex._at || 0) < 15000)) return;
+  let c; try { c = peer.connect(l.pid, { reliable: true, metadata: { webLink: 1 } }); } catch(e) { return; }
+  if (!c) return;
+  c._at = Date.now(); webConns[l.pid] = c;
+  c.on('open', ()=>{ try { c.send({ t:'w_hello', key: l.key, me: { num: me.num, name: me.name }, ver: cfg.version || '' }); } catch(e) {} });
+  c.on('data', d=>onWebData(l, c, d));
+  c.on('close', ()=>{ if (webConns[l.pid] === c) delete webConns[l.pid]; renderWebLinks(); });
+  c.on('error', ()=>{ if (webConns[l.pid] === c) delete webConns[l.pid]; });
+}
+function webSend(obj){ Object.values(webConns).forEach(c=>{ if (c.open && c._ok) { try { c.send(obj); } catch(e) {} } }); }
+function gTickPlain(g, m){ const o = g ? others(g) : []; if (!o.length) return 'ok'; if (o.every(n=>(m.seen || {})[n])) return 'seen'; if (o.every(n=>(m.ok || {})[n])) return 'ok'; return 'wait'; }
+function webList(){
+  const list = Object.keys(contacts).map(n=>({ key:n, name: contacts[n].name, last: contacts[n].last || '', ts: contacts[n].ts || 0, unread: contacts[n].unread || 0, v: verifiedSet.has(n) }))
+    .concat(Object.values(groups).filter(g=>g && g.id).map(g=>({ key:'g:' + g.id, name: g.name, last: g.last || '', ts: g.ts || 0, unread: g.unread || 0, group: true,
+      members: (g.members || []).map(n=>n === me.num ? 'Aap' : contactName(n)), left: !!(g.left || g.removed) })));
+  return list.sort((a,b)=>b.ts - a.ts).slice(0, 200);
+}
+function webMsgs(key){
+  if (key.startsWith('g:')) { const g = groups[key.slice(2)]; return gMsgs(key.slice(2)).slice(-150).map(m=>({ id:m.id, from: m.from === 'sys' ? 'sys' : m.from === me.num ? 'me' : 'them', who: (m.from !== 'sys' && m.from !== me.num) ? contactName(m.from) : '', text: m.deleted ? '' : m.text, del: !!m.deleted, ts: m.ts, tick: m.from === me.num ? gTickPlain(g, m) : '' })); }
+  return getMsgs(key).slice(-150).map(m=>({ id:m.id, from:m.from, text: m.deleted ? '' : (m.kind === 'file' ? fileLabel(m) + ' (phone par dekhein)' : m.text), del: !!m.deleted, ts: m.ts, tick: m.from === 'me' ? (m.seen ? 'seen' : m.ok ? 'ok' : 'wait') : '' }));
+}
+const webDirty = new Set(); let webTimer = null;
+function webNotify(key){
+  if (!Object.values(webConns).some(c=>c._ok)) return;
+  webDirty.add(key); clearTimeout(webTimer);
+  webTimer = setTimeout(()=>{ const keys = [...webDirty]; webDirty.clear(); webSend({ t:'w_list', list: webList() }); keys.forEach(k=>{ if (k !== 'list') webSend({ t:'w_msgs', key:k, list: webMsgs(k) }); }); }, 250);
+}
+function okKey(k){ return typeof k === 'string' && (validNum(k) || (k.startsWith('g:') && isGid(k.slice(2)))); }
+function webRead(key){
+  if (key.startsWith('g:')) {
+    const gid = key.slice(2), list = gMsgs(gid), senders = new Set();
+    list.forEach(m=>{ if (m.from !== me.num && m.from !== 'sys' && !m.seenAt) { m.seenAt = Date.now(); senders.add(m.from); } });
+    saveGMsgs(gid, list); if (groups[gid]) { groups[gid].unread = 0; saveGroups(); }
+    senders.forEach(n=>{ if (!sendGroupStuff(n)) getConn(n); });
+  } else {
+    const msgs = getMsgs(key); msgs.forEach(m=>{ if (m.from === 'them' && !m.seenAt) m.seenAt = Date.now(); }); saveMsgs(key, msgs);
+    if (contacts[key]) { contacts[key].unread = 0; saveContacts(); }
+    sendSeen(key); Native.clearNotif(key);
+  }
+  renderRecent();
+}
+function onWebData(l, c, d){
+  if (!d || typeof d !== 'object') return;
+  if (d.t === 'w_ok') { c._ok = true; c.send({ t:'w_sync', me: { num: me.num, name: me.name }, list: webList(), dp: dpOf(me.num) }); renderWebLinks(); return; }
+  if (d.t === 'w_bad' || d.t === 'w_bye') { unlinkWeb(l.pid); return; }
+  if (!c._ok) return;                                  // chaabi pakki hone se pehle kuch nahi
+  if (d.t === 'w_get' && okKey(d.key)) {
+    c.send({ t:'w_msgs', key: d.key, list: webMsgs(d.key) });
+    if (!d.key.startsWith('g:')) { const img = dpOf(d.key); if (img) c.send({ t:'w_dp', key: d.key, img }); }
+  } else if (d.t === 'w_send' && okKey(d.key) && typeof d.text === 'string' && d.text.trim()) {
+    const text = d.text.trim().slice(0, 4000);
+    if (d.key.startsWith('g:')) sendGroupMsg(text, d.key.slice(2));
+    else if (d.key !== me.num) sendTextTo(d.key, text);
+  } else if (d.t === 'w_read' && okKey(d.key)) webRead(d.key);
+}
+function renderWebLinks(){
+  const el = $('webList'); if (!el) return;
+  if ($('webUrl') && webPageUrl()) $('webUrl').textContent = webPageUrl().replace('https://', '');
+  el.innerHTML = webLinks.map(l=>{ const c = webConns[l.pid], on = c && c.open && c._ok;
+    return '<div class="item" data-num="' + esc(l.pid) + '"><div class="avatar grp">💻</div><div class="meta"><div class="name">PC (' + esc(l.pid.slice(6, 10).toUpperCase()) + '…)</div><div class="last">' + (on ? '🟢 Juda hua' : '⚪ Abhi juda nahi') + ' · ' + fmtTime(l.at) + '</div></div><button class="mini" data-act="unlink" style="color:var(--red)">✖</button></div>'; }).join('');
+  el.querySelectorAll('.item').forEach(it=>it.onclick=e=>{ if (e.target && e.target.dataset && e.target.dataset.act === 'unlink') unlinkWeb(it.dataset.num); });
+}
+setInterval(()=>{ if (me && peer && peer.open && !mustUpd) webLinks.forEach(connectWeb); }, 20000);
 
 function logCall(num, text){
   const msgs = getMsgs(num); msgs.push({ id:uid(), from:'sys', text, ts:Date.now() }); saveMsgs(num, msgs);
@@ -2154,6 +2253,7 @@ $('chatVideo').onclick = ()=> startCall(chatWith, true);
 $('sendBtn').onclick = sendMsg;
 $('attachBtn').onclick = attachMenu;
 $('dpSetBtn').onclick = setMyDp;
+$('webLinkBtn').onclick = ()=>{ const err = linkWeb($('webCode').value); $('webMsg').style.color = err ? 'var(--red)' : ''; $('webMsg').textContent = err || 'Jod rahe hain… PC par chat dikhne lagegi.'; if (!err) $('webCode').value = ''; };
 $('dpDelBtn').onclick = delMyDp;
 $('stTextBtn').onclick = ()=>openStatusEditor('text');
 $('stPhotoBtn').onclick = pickStatusPhoto;
@@ -2191,7 +2291,7 @@ $('speakerBtn').onclick = toggleSpeaker;
 $('settingsBtn').onclick = ()=>{
   $('setName').value = me.name;
   $('aboutVer').textContent = 'Version ' + (cfg.version || '1.0');
-  setAv($('dpPreview'), me.num, me.name); loadDp(me.num, true);
+  setAv($('dpPreview'), me.num, me.name); loadDp(me.num, true); renderWebLinks();
   const t = store.get('turn', {}) || {};
   $('turnUrl').value = t.url||''; $('turnUser').value = t.user||''; $('turnPass').value = t.pass||'';
   if (cfg.turnUrl) $('turnInfo').textContent = '✅ App me TURN pehle se laga hai — kuch bharne ki zaroorat nahi. Khali chhodiye. Sirf apna alag TURN ho to yahan daalein.';
