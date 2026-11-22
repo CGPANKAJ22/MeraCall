@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MeraCall Web</title>
+<style>
+  :root{--blue:#0A7CFF;--bg:#eef1f7;--card:#fff;--text:#1b1f29;--muted:#7a8194;--green:#1fb760;--red:#ec3b3b;--me:#d4e6ff}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+  .hide{display:none!important}
+  /* jodna */
+  #linkView{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px}
+  .linkCard{background:#fff;border-radius:20px;box-shadow:0 6px 30px #0001;max-width:880px;width:100%;display:flex;gap:40px;padding:40px;flex-wrap:wrap}
+  .linkCard h1{margin:0 0 6px;font-size:28px}
+  .steps{flex:1;min-width:280px}
+  .steps ol{padding-left:20px;line-height:2;font-size:16px}
+  .codeBox{flex:0 0 300px;text-align:center;align-self:center}
+  .code{font-family:ui-monospace,Consolas,monospace;font-size:30px;font-weight:800;letter-spacing:2px;background:#f1f5ff;border:2px dashed var(--blue);border-radius:14px;padding:22px 10px;color:var(--blue);user-select:all}
+  .muted{color:var(--muted);font-size:13px}
+  .credit{color:var(--muted);font-size:12px;text-align:center;margin-top:16px}
+  /* app */
+  #appView{height:100%;display:flex}
+  #side{width:360px;min-width:280px;background:#fff;border-right:1px solid #e3e7ef;display:flex;flex-direction:column}
+  .sideHead{background:var(--blue);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:10px}
+  .sideHead .t{flex:1}
+  .sideHead b{font-size:17px}
+  .sideHead small{display:block;opacity:.85;font-size:12px}
+  .btnLite{background:#ffffff26;border:none;color:#fff;border-radius:8px;padding:7px 10px;cursor:pointer;font-size:13px}
+  #search{margin:10px;padding:10px 12px;border-radius:10px;border:1px solid #dfe3ec;font-size:14px;outline:none}
+  #list{flex:1;overflow-y:auto}
+  .it{display:flex;gap:12px;padding:11px 14px;cursor:pointer;border-bottom:1px solid #f0f2f6;align-items:center}
+  .it:hover{background:#f6f8fc}.it.on{background:#e8f1ff}
+  .av{width:44px;height:44px;border-radius:50%;background:#dfe8ff;color:var(--blue);display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;background-size:cover;background-position:center}
+  .av.g{background:#e5dbff;color:#7048e8}
+  .it .m{flex:1;min-width:0}
+  .it .n{font-weight:600;display:flex;justify-content:space-between;gap:6px}
+  .it .n span:last-child{font-weight:400;color:var(--muted);font-size:11px}
+  .it .l{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;justify-content:space-between}
+  .badge{background:var(--green);color:#fff;border-radius:10px;font-size:11px;padding:1px 7px;margin-left:6px}
+  #main{flex:1;display:flex;flex-direction:column;min-width:0}
+  #empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);text-align:center;padding:20px}
+  #empty div{font-size:60px}
+  .chatHead{background:#fff;border-bottom:1px solid #e3e7ef;padding:10px 16px;display:flex;gap:12px;align-items:center}
+  .chatHead .n{font-weight:700}
+  .chatHead small{color:var(--muted)}
+  #msgs{flex:1;overflow-y:auto;padding:16px 8%;display:flex;flex-direction:column;gap:6px;background:#e9edf5}
+  .msg{max-width:65%;padding:8px 12px;border-radius:12px;font-size:15px;line-height:1.4;white-space:pre-wrap;word-wrap:break-word;background:#fff;align-self:flex-start}
+  .msg.me{align-self:flex-end;background:var(--me)}
+  .msg .w{font-size:12px;font-weight:700;color:#7048e8}
+  .msg .t{font-size:11px;color:var(--muted);text-align:right;margin-top:2px}
+  .msg.del{font-style:italic;color:var(--muted)}
+  .tk.seen{color:#1a8cff;font-weight:700}
+  .sys{align-self:center;font-size:12px;color:var(--muted);background:#fff9;padding:4px 10px;border-radius:10px}
+  .comp{display:flex;gap:10px;padding:10px 14px;background:#f6f7fb;border-top:1px solid #e3e7ef}
+  .comp textarea{flex:1;resize:none;border:1px solid #dfe3ec;border-radius:12px;padding:10px 14px;font:inherit;font-size:15px;height:44px;max-height:140px;outline:none}
+  .comp button{width:46px;border:none;border-radius:50%;background:var(--blue);color:#fff;font-size:18px;cursor:pointer}
+  #banner{background:#fff3bf;color:#7a5b00;padding:8px 14px;font-size:13px;text-align:center}
+  @media(max-width:760px){#side{width:100%}#main{display:none}#appView.chat #side{display:none}#appView.chat #main{display:flex}}
+</style>
+</head>
+<body>
+
+<!-- 1. PHONE SE JODNA -->
+<div id="linkView">
+  <div class="linkCard">
+    <div class="steps">
+      <h1>📞 MeraCall Web</h1>
+      <div class="muted">PC par MeraCall chalayein — phone se juda rehta hai</div>
+      <ol>
+        <li>Phone me <b>MeraCall</b> kholiye</li>
+        <li>⚙️ <b>Settings</b> → <b>💻 MeraCall Web</b></li>
+        <li>Saamne wala code wahan likhiye → <b>PC jodein</b></li>
+      </ol>
+      <div class="muted">🔒 Message aapke phone se hi aate-jaate hain. Phone me internet aur MeraCall chalu rehna chahiye.</div>
+      <div class="muted" id="linkErr" style="color:var(--red);margin-top:10px"></div>
+    </div>
+    <div class="codeBox">
+      <div class="muted" style="margin-bottom:8px">Aapka jodne ka code</div>
+      <div class="code" id="code">…</div>
+      <div class="muted" id="linkState" style="margin-top:12px">Phone ka intezaar…</div>
+      <button id="newCode" style="margin-top:14px;border:none;background:none;color:var(--blue);cursor:pointer">🔄 Naya code</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2. CHAT -->
+<div id="appView" class="hide">
+  <div id="side">
+    <div class="sideHead">
+      <div class="av" id="myAv" style="width:38px;height:38px"></div>
+      <div class="t"><b id="myName"></b><small id="myNum"></small></div>
+      <button class="btnLite" id="logoutBtn" title="Is PC se hatao">Logout</button>
+    </div>
+    <div id="banner" class="hide">📵 Phone se sampark toota — phone me internet aur MeraCall chalu rakhiye</div>
+    <input id="search" placeholder="🔍 Chat khojein">
+    <div id="list"></div>
+    <div class="credit" style="margin:8px">Built by <b>Pankaj Jaiswal</b></div>
+  </div>
+  <div id="main">
+    <div id="empty"><div>💬</div><h2 style="margin:8px 0">MeraCall Web</h2><p>Baayein se koi chat chuniye.<br>Call aur photo/file abhi phone se hi.</p></div>
+    <div id="chat" class="hide" style="flex:1;display:flex;flex-direction:column;min-height:0">
+      <div class="chatHead"><button class="btnLite" id="backBtn" style="background:#eef1f7;color:#333">←</button><div class="av" id="chAv"></div><div style="flex:1;min-width:0"><div class="n" id="chName"></div><small id="chSub"></small></div></div>
+      <div id="msgs"></div>
+      <div class="comp"><textarea id="inp" placeholder="Message likhiye… (Enter = bhejo, Shift+Enter = nayi line)"></textarea><button id="sendBtn">➤</button></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+if (typeof Peer === 'undefined') document.write('<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"><\/script>');
+</script>
+<script>
+(function(){
+'use strict';
+// MeraCall Web — Built by Pankaj Jaiswal
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const AL = 'abcdefghjkmnpqrstuvwxyz23456789';
+function rnd(n){ const a = new Uint32Array(n); crypto.getRandomValues(a); return Array.from(a, x=>AL[x % AL.length]).join(''); }
+function fmtTime(ts){ return ts ? new Date(ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : ''; }
+function initials(n){ return String(n || '?').trim().charAt(0).toUpperCase(); }
+
+let ident = null;
+try { ident = JSON.parse(localStorage.getItem('mcweb') || 'null'); } catch(e) {}
+if (!ident || !/^[a-z0-9]{8}$/.test(ident.id || '') || !/^[a-z0-9]{8}$/.test(ident.key || '')) newIdent();
+function newIdent(){ ident = { id: rnd(8), key: rnd(8) }; try { localStorage.setItem('mcweb', JSON.stringify(ident)); } catch(e) {} }
+function codeText(){ const c = (ident.id + ident.key).toUpperCase(); return c.match(/.{4}/g).join('-'); }
+
+let peer = null, phone = null, me = null, list = [], open = null;
+const msgs = {}, dps = {};
+
+function start(){
+  $('code').textContent = codeText();
+  if (typeof Peer === 'undefined') { $('linkErr').textContent = 'Internet check karein, phir page refresh karein.'; return; }
+  if (peer) try { peer.destroy(); } catch(e) {}
+  peer = new Peer('mcweb-' + ident.id, { config: { iceServers: [{ urls:'stun:stun.l.google.com:19302' }, { urls:'stun:stun.cloudflare.com:3478' }] } });
+  peer.on('open', ()=>{ $('linkState').textContent = phone ? '' : 'Phone ka intezaar…'; });
+  peer.on('error', e=>{
+    if (e.type === 'unavailable-id') $('linkErr').textContent = 'MeraCall Web doosre tab/browser me pehle se khula hai. Wahi use karein.';
+    else if (e.type === 'network' || e.type === 'server-error' || e.type === 'socket-error') setTimeout(start, 5000);
+  });
+  peer.on('disconnected', ()=>setTimeout(()=>{ if (peer && !peer.destroyed && peer.disconnected) peer.reconnect(); }, 2000));
+  peer.on('connection', c=>{
+    if (!c.metadata || !c.metadata.webLink) { try { c.close(); } catch(e) {} return; }
+    let ok = false;
+    const t = setTimeout(()=>{ if (!ok) try { c.close(); } catch(e) {} }, 10000);
+    c.on('data', d=>{
+      if (!d || typeof d !== 'object') return;
+      if (!ok) {
+        if (d.t !== 'w_hello') return;
+        clearTimeout(t);
+        if (d.key !== ident.key || !d.me || !/^[6-9]\d{9}$/.test(String(d.me.num))) { try { c.send({ t:'w_bad' }); } catch(e) {} setTimeout(()=>{ try { c.close(); } catch(e) {} }, 300); return; }
+        ok = true;
+        if (phone && phone !== c) try { phone.close(); } catch(e) {}
+        phone = c; me = d.me; c.send({ t:'w_ok' });
+        showApp(); return;
+      }
+      onPhone(d);
+    });
+    c.on('close', ()=>{ if (phone === c) { phone = null; $('banner').classList.remove('hide'); } });
+  });
+}
+
+function showApp(){
+  $('linkView').classList.add('hide'); $('appView').classList.remove('hide'); $('banner').classList.add('hide');
+  $('myName').textContent = me.name || 'MeraCall'; $('myNum').textContent = me.num;
+  setAv($('myAv'), me.num, me.name);
+  if (open) get(open);
+}
+function setAv(el, key, name, group){
+  el.classList.toggle('g', !!group);
+  const img = dps[key];
+  el.style.backgroundImage = img ? 'url(' + img + ')' : '';
+  el.textContent = img ? '' : (group ? '👥' : initials(name));
+}
+function onPhone(d){
+  switch (d.t) {
+    case 'w_sync': me = d.me || me; if (d.dp && /^data:image\/jpeg;base64,/.test(d.dp)) dps[me.num] = d.dp; list = Array.isArray(d.list) ? d.list : []; showApp(); renderList(); break;
+    case 'w_list': list = Array.isArray(d.list) ? d.list : list; renderList(); if (open) renderHead(); break;
+    case 'w_msgs': {
+      if (typeof d.key !== 'string' || !Array.isArray(d.list)) return;
+      const before = (msgs[d.key] || []).length;
+      msgs[d.key] = d.list;
+      if (d.key === open) { renderMsgs(); if (document.visibilityState === 'visible') read(open); }
+      else if (d.list.length > before && before > 0) notify(d.key, d.list[d.list.length - 1]);
+      break;
+    }
+    case 'w_dp': if (typeof d.img === 'string' && /^data:image\/jpeg;base64,/.test(d.img)) { dps[d.key] = d.img; renderList(); if (open === d.key) renderHead(); } break;
+    case 'w_bye': logout(true); break;
+  }
+}
+function send(obj){ if (phone && phone.open) { try { phone.send(obj); return true; } catch(e) {} } return false; }
+function get(key){ send({ t:'w_get', key }); }
+function read(key){ const it = list.find(x=>x.key === key); if (it && it.unread) send({ t:'w_read', key }); }
+
+function renderList(){
+  const q = $('search').value.trim().toLowerCase();
+  const items = list.filter(x=>!q || String(x.name).toLowerCase().includes(q) || String(x.key).includes(q));
+  $('list').innerHTML = items.length ? items.map(x=>{
+    const img = !x.group && dps[x.key];
+    return '<div class="it' + (x.key === open ? ' on' : '') + '" data-k="' + esc(x.key) + '"><div class="av' + (x.group ? ' g' : '') + '"' + (img ? ' style="background-image:url(' + img + ')"' : '') + '>' + (img ? '' : (x.group ? '👥' : esc(initials(x.name)))) + '</div>'
+      + '<div class="m"><div class="n"><span>' + esc(x.name) + (x.v ? ' ✅' : '') + '</span><span>' + fmtTime(x.ts) + '</span></div><div class="l"><span>' + esc(x.last) + '</span>' + (x.unread ? '<span class="badge">' + x.unread + '</span>' : '') + '</div></div></div>';
+  }).join('') : '<div class="muted" style="padding:30px;text-align:center">Koi chat nahi</div>';
+  $('list').querySelectorAll('.it').forEach(el=>el.onclick=()=>openChat(el.dataset.k));
+}
+function renderHead(){
+  const x = list.find(i=>i.key === open) || { name: open, key: open };
+  $('chName').textContent = (x.group ? '' : '') + x.name + (x.v ? ' ✅' : '');
+  $('chSub').textContent = x.group ? (x.members || []).join(', ') : x.key;
+  setAv($('chAv'), x.key, x.name, x.group);
+  const left = x.group && x.left;
+  $('inp').disabled = left; $('inp').placeholder = left ? 'Aap is group me nahi hain' : 'Message likhiye… (Enter = bhejo, Shift+Enter = nayi line)';
+}
+function openChat(key){
+  open = key; $('empty').classList.add('hide'); $('chat').classList.remove('hide'); $('appView').classList.add('chat');
+  renderHead(); renderMsgs(); renderList(); get(key); read(key); $('inp').focus();
+}
+function tick(t){ return t === 'seen' ? ' <span class="tk seen">✓✓</span>' : t === 'ok' ? ' <span class="tk">✓✓</span>' : t ? ' 🕓' : ''; }
+function renderMsgs(){
+  const l = msgs[open] || [], el = $('msgs');
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  el.innerHTML = l.length ? l.map(m=>{
+    if (m.from === 'sys') return '<div class="sys">' + esc(m.text) + ' · ' + fmtTime(m.ts) + '</div>';
+    const mine = m.from === 'me';
+    if (m.del) return '<div class="msg del' + (mine ? ' me' : '') + '">🚫 ' + (mine ? 'Aapne ye message hata diya' : 'Ye message hata diya gaya') + '<div class="t">' + fmtTime(m.ts) + '</div></div>';
+    return '<div class="msg' + (mine ? ' me' : '') + '">' + (m.who ? '<div class="w">' + esc(m.who) + '</div>' : '') + esc(m.text) + '<div class="t">' + fmtTime(m.ts) + (mine ? tick(m.tick) : '') + '</div></div>';
+  }).join('') : '<div class="sys">Message aa rahe hain…</div>';
+  if (atBottom || l.length < 30) el.scrollTop = el.scrollHeight;
+}
+function sendMsg(){
+  const t = $('inp').value.trim(); if (!t || !open) return;
+  if (!send({ t:'w_send', key: open, text: t })) { alert('Phone se juda nahi hai. Phone me MeraCall chalu rakhiye.'); return; }
+  $('inp').value = '';
+}
+let notifOk = false;
+function notify(key, m){
+  if (document.visibilityState === 'visible' || !m || m.from === 'me' || m.from === 'sys') return;
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') { const x = list.find(i=>i.key === key) || {}; try { const n = new Notification(x.name || 'MeraCall', { body: (m.who ? m.who + ': ' : '') + String(m.text || '').slice(0, 120) }); n.onclick = ()=>{ window.focus(); openChat(key); }; } catch(e) {} }
+}
+function logout(fromPhone){
+  if (!fromPhone) send({ t:'w_bye' });
+  const old = phone; setTimeout(()=>{ try { if (old) old.close(); } catch(e) {} }, 600);   // "hatao" pahunchne do
+  phone = null; me = null; list = []; open = null;
+  newIdent(); start();
+  $('appView').classList.add('hide'); $('linkView').classList.remove('hide');
+  $('linkErr').textContent = fromPhone ? 'Phone ne is PC ko hata diya.' : '';
+}
+
+$('sendBtn').onclick = sendMsg;
+$('inp').addEventListener('keydown', e=>{ if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } });
+$('search').addEventListener('input', renderList);
+$('logoutBtn').onclick = ()=>{ if (confirm('Is PC se MeraCall hatana hai?')) logout(false); };
+$('backBtn').onclick = ()=>{ open = null; $('appView').classList.remove('chat'); $('chat').classList.add('hide'); $('empty').classList.remove('hide'); renderList(); };
+$('newCode').onclick = ()=>{ newIdent(); start(); };
+document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState === 'visible' && open) read(open); });
+document.addEventListener('click', ()=>{ if (!notifOk && 'Notification' in window && Notification.permission === 'default') { notifOk = true; try { Notification.requestPermission(); } catch(e) {} } }, { once:false });
+start();
+})();
+</script>
+</body>
+</html>
