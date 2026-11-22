@@ -1175,6 +1175,7 @@ function renderStatusList(){
   setAv($('myStatusAv'), me.num, me.name);
   $('myStatusRing').classList.toggle('seen', !stMine.length);
   $('myStatusSub').textContent = stMine.length ? stMine.length + ' status · ' + timeAgo(stMine[stMine.length-1].ts) : 'Abhi koi status nahi';
+  if (stUp) showStUp(stUp.text || '⏫ Status lag raha hai…', stUp.err);
   const nums = Object.keys(stFeed).sort((a,b)=>{
     const ua = stFeed[a].some(s=>!stSeen[a+'/'+s.sid]), ub = stFeed[b].some(s=>!stSeen[b+'/'+s.sid]);
     return ua !== ub ? (ua ? -1 : 1) : stFeed[b][stFeed[b].length-1].ts - stFeed[a][stFeed[a].length-1].ts;
@@ -1425,53 +1426,62 @@ async function statusVideo(f, lv){
     toast('✅ Video taiyaar (' + Math.round(r.blob.size / 1024 / 102.4) / 10 + ' MB' + (lv ? ', server bhara hai isliye halki' : '') + ')', 2500);
   } catch(e) { toast('Ye video status me nahi lag saki. Chhoti (30 sec) video chuniye.', 3500); }
 }
+// Status peeche lagta hai: "Bhejo" dabate hi screen band, upar "Lag raha hai 45%"
+let stUp = null;          // { text, err, job }
+function showStUp(text, err){
+  stUp = Object.assign(stUp || {}, { text, err: !!err });
+  const sub = $('myStatusSub'); if (sub) { sub.textContent = text; sub.style.color = err ? '#e53935' : '#25d366'; sub.style.fontWeight = '600'; }
+}
 async function postStatus(){
-  const sid = sidNew();
-  const rec = { type: seMode, ts: { '.sv':'timestamp' } };
+  if (stUp && !stUp.err) return toast('Pehla status abhi lag raha hai — thoda rukiye');
+  const job = { mode: seMode, cap: $('seCap').value.trim() };
   if (seMode === 'text') {
     const t = $('seText').value.trim(); if (!t) return toast('Kuch likhiye');
-    rec.text = t.slice(0, 700); rec.bg = seBg;
+    job.text = t.slice(0, 700); job.bg = seBg;
   } else if (seMode === 'video') {
     if (!seVidData && !seVidPc) return toast('Video chuniye');
-    const cap = $('seCap').value.trim(); if (cap) rec.text = cap.slice(0, 300);
-    rec.dur = seVidDur || 30;
-    if (!seVidPc) rec.sz = Math.round(seVidData.length * 0.75);
+    job.vidData = seVidData; job.vidPc = seVidPc; job.dur = seVidDur || 30;
   } else {
     if (!seImgData) return toast('Photo chuniye');
-    const cap = $('seCap').value.trim(); if (cap) rec.text = cap.slice(0, 300);
-    rec.sz = Math.round(seImgData.length * 0.75);
+    job.img = seImgData;
   }
-  $('sePost').disabled = true;
-  if (seMode === 'video') toast('Video status upload ho raha hai…', 4000);
-  if (seMode === 'video' && seVidPc) {
-    // har hissa alag status; aakhri hissa 'sid' par (jo neeche likha jayega), pehle wale naye id par
-    const parts = seVidPc.parts, n = parts.length;
-    for (let i = 0; i < n; i++) {
-      const id = i === n - 1 ? sid : sidNew(), p = parts[i];
-      let up = null;
-      try { up = await uploadStatusPc(id, p.blob, p.mime, x=>toast('📦 Server tak' + (n > 1 ? ' (hissa ' + (i + 1) + '/' + n + ')' : '') + '… ' + x + '%', 1500)); } catch(e) {}
-      if (!up) {
-        $('sePost').disabled = false;
-        return toast(i ? i + ' hisse lag gaye, baaki server tak nahi gaye — internet check karein' : 'Video server tak nahi gayi — internet check karke dobara dabaiye', 4000);
-      }
-      const r = Object.assign({}, rec, up, { dur: p.dur });
-      if (n > 1) r.text = ((rec.text ? rec.text + ' ' : '') + '(' + (i + 1) + '/' + n + ')').slice(0, 700);
-      if (i < n - 1) {
-        try { await fb('status/' + me.num + '/' + id + '.json', { method:'PUT', body: JSON.stringify(r) }, true); }
-        catch(e) { $('sePost').disabled = false; return toast('Status nahi laga. Internet check karein.'); }
-      } else Object.assign(rec, r);
-    }
-  }
+  try { $('seVid').pause && $('seVid').pause(); } catch(e) {}
+  show('homeScreen'); switchTab('tabStatus');              // screen turant band
+  runStatusJob(job);
+}
+async function runStatusJob(job){
+  stUp = { job }; showStUp('⏫ Status lag raha hai…');
+  const fail = msg=>{ showStUp('❌ ' + msg + ' — yahan dabakar dobara', true); toast('Status nahi laga — "Mera status" par dabakar dobara bhejein', 4000); };
+  const sid = sidNew();
+  const rec = { type: job.mode, ts: { '.sv':'timestamp' } };
+  if (job.mode === 'text') { rec.text = job.text; rec.bg = job.bg; }
+  else if (job.cap) rec.text = job.cap.slice(0, 300);
+  if (job.mode === 'photo') rec.sz = Math.round(job.img.length * 0.75);
+  if (job.mode === 'video') { rec.dur = job.dur; if (!job.vidPc) rec.sz = Math.round(job.vidData.length * 0.75); }
   try {
-    if (seMode === 'photo') await fb('statusImg/' + me.num + '/' + sid + '.json', { method:'PUT', body: JSON.stringify(seImgData) }, true);
-    if (seMode === 'video' && !seVidPc) await fbBig('statusVid/' + me.num + '/' + sid + '.json', { method:'PUT', body: JSON.stringify(seVidData) }, true);
-    try { $('seVid').pause && $('seVid').pause(); } catch(e) {}
+    if (job.mode === 'video' && job.vidPc) {
+      // har hissa alag status; aakhri hissa 'sid' par, pehle wale naye id par
+      const parts = job.vidPc.parts, n = parts.length;
+      job.doneParts = job.doneParts || 0;
+      for (let i = job.doneParts; i < n; i++) {
+        const id = i === n - 1 ? sid : sidNew(), p = parts[i];
+        let up = null;
+        try { up = await uploadStatusPc(id, p.blob, p.mime, x=>showStUp('⏫ Status lag raha hai' + (n > 1 ? ' (' + (i + 1) + '/' + n + ')' : '') + '… ' + x + '%')); } catch(e) {}
+        if (!up) return fail(i ? i + '/' + n + ' hisse lage, baaki nahi gaye' : 'Video server tak nahi gayi');
+        const r = Object.assign({}, rec, up, { dur: p.dur });
+        if (n > 1) r.text = ((rec.text ? rec.text + ' ' : '') + '(' + (i + 1) + '/' + n + ')').slice(0, 700);
+        if (i < n - 1) { await fb('status/' + me.num + '/' + id + '.json', { method:'PUT', body: JSON.stringify(r) }, true); job.doneParts = i + 1; }
+        else Object.assign(rec, r);
+      }
+    }
+    if (job.mode === 'photo') { showStUp('⏫ Photo lag rahi hai…'); await fb('statusImg/' + me.num + '/' + sid + '.json', { method:'PUT', body: JSON.stringify(job.img) }, true); }
+    if (job.mode === 'video' && !job.vidPc) { showStUp('⏫ Video lag rahi hai…'); await fbBig('statusVid/' + me.num + '/' + sid + '.json', { method:'PUT', body: JSON.stringify(job.vidData) }, true); }
     await fb('status/' + me.num + '/' + sid + '.json', { method:'PUT', body: JSON.stringify(rec) }, true);
-    toast('✅ Status lag gaya');
-    show('homeScreen'); switchTab('tabStatus');
-    stMine = await fetchStatus(me.num) || stMine; renderStatusList();
-  } catch(e) { toast('Status nahi laga. Internet check karein.'); }
-  $('sePost').disabled = false;
+  } catch(e) { return fail('Status nahi laga (internet)'); }
+  stUp = null;
+  toast('✅ Status lag gaya');
+  stMine = await fetchStatus(me.num) || stMine; renderStatusList();
+  const sub = $('myStatusSub'); if (sub) { sub.style.color = ''; sub.style.fontWeight = ''; }
 }
 
 // ----- Status dekhna -----
@@ -1692,7 +1702,7 @@ function pumpFiles(num){
   if (!c || !c.open) { getConn(num); return; }
   const o = outFiles[id], m = o.meta;
   sendingNow[num] = id;
-  send(num, { t:'fstart', id, name:m.name, mime:m.mime, size:m.size, thumb:m.thumb, ts:m.ts, from:me.name, doc: !!m.doc, v:2, ch:CH2 });
+  send(num, Object.assign({ t:'fstart', id, name:m.name, mime:m.mime, size:m.size, thumb:m.thumb, ts:m.ts, from:me.name, doc: !!m.doc, v:2, ch:CH2 }, o.gid ? { gid: o.gid, gmid: o.gmid } : {}));
   clearTimeout(o.wait);
   o.wait = setTimeout(()=>{ if (sendingNow[num] === id && !o.streaming) { sendingNow[num] = null; pumpFiles(num); } }, 25000);   // jawab nahi: dobara poochho
 }
@@ -1815,6 +1825,14 @@ function finishIncoming(num, id){
   const inf = inFiles[id]; if (!inf) return;
   const uri = Native.fileFinish ? Native.fileFinish(id, inf.name, inf.mime) : 'mem:' + id;
   delete inFiles[id]; delete inMem[id]; store.set('inF', inFiles);
+  if (inf.gid) {                                            // group ki file
+    const gm = updGFile(inf.gid, inf.gmid, { uri: uri || '', prog:100, fail: !uri });
+    send(num, { t:'fdone', id });
+    markGroupSeen(inf.gid);
+    const g = groups[inf.gid], viewing = current === 'chatScreen' && chatGroup === inf.gid && Native.isForeground();
+    if (gm && g && !viewing) { g.unread = (g.unread || 0) + 1; saveGroups(); renderRecent(); Native.notifyMessage(num, g.name, contactName(num) + ': ' + fileLabel(gm)); }
+    return;
+  }
   const m = updateFileMsg(num, id, { uri: uri || '', prog:100, fail: !uri });
   send(num, { t:'fdone', id });
   markSeen(num);
@@ -1841,6 +1859,9 @@ function setupLane(c){
 
 let progSave = 0;
 function setProg(num, id, pct){
+  const og = outFiles[id], ig = inFiles[id];
+  if (og && og.gid) return gP2pProg(og.gid, og.gmid);       // group: sab members ka milakar
+  if (ig && ig.gid) return gSetProg(ig.gid, ig.gmid, pct);
   const el = document.querySelector ? document.querySelector('[data-fid="'+id+'"]') : null;
   if (el) { const bar = el.querySelector('.fbar i'); if (bar) bar.style.width = pct + '%'; (el.querySelectorAll ? Array.from(el.querySelectorAll('.fpct')) : []).forEach(t=>{ t.textContent = pct + '% · '; }); }
   if (Date.now() - progSave > 1500 || pct >= 100) {
@@ -1863,6 +1884,29 @@ function onFileData(num, d){
       const mime = String(d.mime || ''), kind = fileKind(mime), size = +d.size || 0;
       if (kind === 'other' || size <= 0 || size > (LIMIT[kind] || 0) + 1024 || typeof d.id !== 'string' || d.id.length > 40) { send(num, { t:'fno', id:d.id }); return; }
       const name = String(d.name || 'file').slice(0, 80);
+      if (d.gid !== undefined) {                              // group ki file (server band tha: seedhe aayi)
+        const g = groups[d.gid];
+        if (!isGid(d.gid) || !g || g.removed || g.left || !g.members.includes(num) || typeof d.gmid !== 'string' || d.gmid.length > 40 || !(d.v === 2 && d.ch === CH2 && Native.fileOpen2)) { send(num, { t:'fno', id:d.id }); return; }
+        const list = gMsgs(g.id); let gm = list.find(x=>x.id === d.gmid);
+        if (gm && gm.uri) { send(num, { t:'fdone', id:d.id }); return; }
+        if (!gm) {
+          gm = { id:d.gmid, from:num, kind:'file', name, mime, size, thumb: safeThumb(d.thumb), ts: d.ts || Date.now(), prog:0, uri:'', doc: !!d.doc };
+          list.push(gm); saveGMsgs(g.id, list);
+          const viewing = current === 'chatScreen' && chatGroup === g.id && Native.isForeground();
+          touchGroup(g.id, contactName(num) + ': ' + fileLabel(gm), !viewing);
+          if (current === 'chatScreen' && chatGroup === g.id) renderMsgs();
+        }
+        const prev = inFiles[d.id];
+        if (!(prev && prev.v === 2)) {
+          if (!Native.fileOpen2(d.id, size)) { send(num, { t:'fno', id:d.id }); return; }
+          inFiles[d.id] = { num, name, mime, size, v:2, ch:CH2, have:'', gid: g.id, gmid: d.gmid }; store.set('inF', inFiles);
+        }
+        const st = inState(d.id), miss = [];
+        for (let i = 0; i < st.total; i++) if (!st.have[i]) miss.push(i);
+        if (!miss.length) { finishIncoming(num, d.id); return; }
+        send(num, { t:'fready', id:d.id, v:2, miss: listToRanges(miss) });
+        return;
+      }
       const msgs = getMsgs(num); let m = msgs.find(x=>x.id === d.id);
       if (m && m.kind !== 'file') { Object.assign(m, { kind:'file', name, mime, size, thumb: safeThumb(d.thumb), prog:0, uri:'', doc: !!d.doc }); delete m.text; saveMsgs(num, msgs); if (current === 'chatScreen' && chatWith === num) renderMsgs(); }
       if (m && m.uri) { send(num, { t:'fdone', id:d.id }); return; }   // pehle hi aa chuki
@@ -1896,7 +1940,7 @@ function onFileData(num, d){
       return;
     }
     case 'fchunk2': { const u8 = d.d instanceof Uint8Array ? d.d : new Uint8Array(d.d || []); gotChunk(num, d.id, +d.i, u8); return; }
-    case 'fno': if (outFiles[d.id]) { delete outFiles[d.id]; sendingNow[num] = null; updateFileMsg(num, d.id, { fail:true }); pumpFiles(num); } return;
+    case 'fno': if (outFiles[d.id]) { const o = outFiles[d.id]; delete outFiles[d.id]; sendingNow[num] = null; if (o.gid) gP2pProg(o.gid, o.gmid); else updateFileMsg(num, d.id, { fail:true }); pumpFiles(num); } return;
     case 'fchunk': {
       const inf = inFiles[d.id];
       if (!inf || inf.num !== num || d.o !== inf.got) return;   // galat kram: chhodo (sender dobara bhejega)
@@ -1926,9 +1970,17 @@ function onFileData(num, d){
       return;
     }
     case 'fdone': {
-      if (outFiles[d.id]) { clearTimeout(outFiles[d.id].wait); delete outFiles[d.id]; }
+      const og = outFiles[d.id];
+      if (og) { clearTimeout(og.wait); delete outFiles[d.id]; }
       if (inMem[d.id]) delete inMem[d.id];
       if (sendingNow[num] === d.id) sendingNow[num] = null;
+      if (og && og.gid) {                                      // group: is member tak pahunchi
+        const list = gMsgs(og.gid), gm = list.find(x=>x.id === og.gmid);
+        if (gm) { gm.ok = gm.ok || {}; gm.ok[num] = 1; saveGMsgs(og.gid, list); }
+        gP2pProg(og.gid, og.gmid, true);
+        pumpFiles(num);
+        return;
+      }
       updateFileMsg(num, d.id, { ok:true, prog:100 });
       pumpFiles(num);
       return;
@@ -2276,11 +2328,12 @@ function zoomable(im){
 
 function fileBubble(m, g){
   const mine = m.from === 'me' || (!!g && !!me && m.from === me.num), img = /^image\//.test(m.mime) && !m.doc;
-  const done = mine ? (g ? !!m.pcSent : (m.ok || m.pcSent)) : !!m.uri;
-  const lost = mine && !m.pcSent && (g ? !gOut[m.id] : (!m.ok && !outFiles[m.id])) && !m.fail;    // app band hui: file yaad nahi
+  const gLeft = g && m.p2p ? Object.values(outFiles).some(x=>x.gmid === m.id) : false;
+  const done = mine ? (g ? !!m.pcSent || (m.p2p && !gLeft) : (m.ok || m.pcSent)) : !!m.uri;
+  const lost = mine && !m.pcSent && (g ? (m.p2p ? !gLeft && others(g).some(n=>!(m.ok || {})[n]) : !gOut[m.id]) : (!m.ok && !outFiles[m.id])) && !m.fail;    // app band hui: file yaad nahi
   const waitDl = !mine && m.pc && !m.uri && !pcDown[m.id];
   let state = '';
-  if (m.fail || lost) state = '❌ nahi gaya' + (mine ? ' — dobara bhejein' : '') + ' · ';
+  if (m.fail || lost) state = (g && m.p2p && mine ? '❌ sab tak nahi pahunchi — dobara bhejein' : '❌ nahi gaya' + (mine ? ' — dobara bhejein' : '')) + ' · ';
   else if (waitDl) state = '<b class="dl">⬇️ Download dabaiye</b> · ';
   else if (mine && m.pcSent && !m.ok && !g) state = '📦 Server par rakhi (saamne wala le sakta hai) · ';
   else if (!done) state = (mine && m.via === 'pc' ? '📦 Server tak ' : '') + '<span class="fpct">' + (m.prog ? m.prog + '% · ' : (mine ? '🕓 ' : '⬇️ ')) + '</span>';
@@ -2289,7 +2342,7 @@ function fileBubble(m, g){
     : '<div class="fcard">' + (/^video\//.test(m.mime) ? '🎬' : /^image\//.test(m.mime) ? '🖼️' : m.mime === 'application/pdf' ? '📄' : '📁') + ' <b>' + esc(m.name) + '</b><br><small>' + fmtSize(m.size) + (m.doc && /^image\//.test(m.mime) ? ' · original' : '') + (done && !mine ? (/^(image|video)\//.test(m.mime) ? ' · ▶ dabakar dekhein' : ' · dabakar kholein') : '') + '</small></div>';
   const bar = (!done && !m.fail && !lost && !waitDl) ? '<div class="fbar"><i style="width:' + (m.prog || 0) + '%"></i></div>' : '';
   const who = g && !mine ? '<div class="gname">' + esc(contactName(m.from)) + '</div>' : '';
-  const tk = !mine ? '' : g ? (m.pcSent ? ' ' + gTick(g, m) : '') : (m.ok || m.pcSent) ? ' ' + tick(m) : '';
+  const tk = !mine ? '' : g ? (m.pcSent || m.p2p ? ' ' + gTick(g, m) : '') : (m.ok || m.pcSent) ? ' ' + tick(m) : '';
   return '<div class="msg file ' + (mine ? 'me' : 'them') + '" data-fid="' + esc(m.id) + '" data-mid="' + esc(m.id) + '">' + who + body + bar
     + '<div class="t">' + state + fmtTime(m.ts) + tk + '</div></div>';
 }
@@ -2524,10 +2577,35 @@ function updGFile(gid, id, patch){
   if (current === 'chatScreen' && chatGroup === gid) renderMsgs();
   return m;
 }
+/** Server band: har member ko seedhe (P2P) — har ek ka alag transfer, file group chat me hi */
+function groupP2p(gid, m, blob){
+  const g = groups[gid]; if (!g) return;
+  const list = gMsgs(gid), gm = list.find(x=>x.id === m.id);
+  if (gm) { gm.p2p = true; gm.via = ''; gm.prog = 0; delete gm.fail; saveGMsgs(gid, list); }
+  others(g).forEach(n=>{
+    if ((m.ok || {})[n]) return;
+    const tid = m.id + n.slice(-6);
+    outFiles[tid] = { num: n, blob, meta: Object.assign({}, m, { id: tid }), gid, gmid: m.id };
+    pumpFiles(n);
+  });
+  if (current === 'chatScreen' && chatGroup === gid) renderMsgs();
+}
+/** Group P2P: sab members ka milakar progress; sab tak pahunch gayi to poori */
+function gP2pProg(gid, gmid, redraw){
+  const g = groups[gid]; if (!g) return;
+  const list = gMsgs(gid), gm = list.find(x=>x.id === gmid); if (!gm) return;
+  const o = others(g), left = Object.values(outFiles).filter(x=>x.gmid === gmid);
+  const done = o.filter(n=>(gm.ok || {})[n]).length;
+  let pct = 0;
+  left.forEach(x=>{ pct += x.blob.size ? Math.min(100, ((x.sent || 0) * CH2 * 100) / x.blob.size) : 0; });
+  pct = o.length ? Math.floor((done * 100 + pct) / o.length) : 100;
+  if (!left.length) { gm.prog = 100; saveGMsgs(gid, list); if (current === 'chatScreen' && chatGroup === gid) renderMsgs(); return; }
+  if (redraw) { if (current === 'chatScreen' && chatGroup === gid) renderMsgs(); }
+  gSetProg(gid, gmid, Math.min(99, pct));
+}
 async function attachGroupFile(gid, accept, asDoc){
   const g = groups[gid]; if (!g || g.left || g.removed) return toast('Aap is group me nahi hain');
   if (!others(g).length) return toast('Group me koi aur member nahi hai');
-  if (!(await relayUrl(true))) return toast('Group me file bhejne ke liye server chalu hona chahiye', 3500);
   const pr = await prepFile(accept, asDoc); if (!pr) return;
   const { blob, name, thumb, outMime } = pr;
   const m = { id: uid() + uid(), from: me.num, kind:'file', name, mime: outMime, size: blob.size, thumb, ts: Date.now(), ok:{}, seen:{}, via:'pc', prog:0, doc: !!asDoc };
@@ -2537,10 +2615,10 @@ async function attachGroupFile(gid, accept, asDoc){
   touchGroup(gid, 'Aap: ' + fileLabel(m));
   if (current === 'chatScreen' && chatGroup === gid) renderMsgs();
   let key = null;
-  try { key = await uploadGroupFile(m.id, blob, others(g), p=>gSetProg(gid, m.id, p)); } catch(e) {}
+  if (await relayUrl(true)) { try { key = await uploadGroupFile(m.id, blob, others(g), p=>gSetProg(gid, m.id, p)); } catch(e) {} }   // pehle server
   if (!gOut[m.id]) return;                                   // beech me hata di
   delete gOut[m.id];
-  if (!key) { updGFile(gid, m.id, { fail: true }); return toast('File server tak nahi gayi — internet check karke dobara bhejein', 3500); }
+  if (!key) return groupP2p(gid, m, blob);                   // server band / fail: seedhe har member ko
   updGFile(gid, m.id, Object.assign({ pcSent: true, prog: 100 }, key));
   pushGroup(groups[gid]);
 }
@@ -2674,7 +2752,7 @@ function groupMenu(id){
     saveGMsgs(g.id, gMsgs(g.id).filter(x=>x.id !== id)); renderMsgs(); } });
   if (m.from === me.num && !m.deleted && Date.now() - m.ts < DEL_ALL_MS && !g.left && !g.removed) btns.push({ label:'🚫 Sabke liye hatao', cls:'red', fn:()=>{
     const list = gMsgs(g.id), x = list.find(y=>y.id === id);
-    if (x.kind === 'file') { if (gOut[id]) delete gOut[id]; pcFetch('DELETE', '/gf/' + id).catch(()=>{}); }
+    if (x.kind === 'file') { if (gOut[id]) delete gOut[id]; Object.keys(outFiles).forEach(k=>{ if (outFiles[k].gmid === id) delete outFiles[k]; }); if (x.pcSent) pcFetch('DELETE', '/gf/' + id).catch(()=>{}); }
     Object.assign(x, { deleted:true, text:'', delPend: others(g) }); saveGMsgs(g.id, list); renderMsgs(); pushGroup(g); toast('Sabke liye hata diya');
   } });
   btns.push({ label:'Band karein', cls:'ghost', fn:()=>{} });
@@ -3120,7 +3198,7 @@ $('stCamBtn').onclick = ()=>modal('📸 Camera', 'Kya kheenchna hai?', [
   { label:'📷 Photo', cls:'', fn:()=>pickStatusMedia('image/*,.mccam,.mcstatus') },
   { label:'🎥 Video (3 min tak, 30-30 sec ke hisse)', cls:'', fn:()=>pickStatusMedia('video/*,.mccam,.mcstatus') },
   { label:'Band karein', cls:'ghost', fn:()=>{} } ]);
-$('myStatusRow').onclick = ()=>openStatus(me.num);
+$('myStatusRow').onclick = ()=>{ if (stUp && stUp.err && stUp.job) return runStatusJob(stUp.job); if (stUp) return toast('Status abhi lag raha hai…'); openStatus(me.num); };
 $('seBack').onclick = ()=>{ show('homeScreen'); switchTab('tabStatus'); };
 $('sePost').onclick = postStatus;
 $('seColors').innerHTML = ST_COLORS.map(c=>'<b data-c="'+c+'" style="background:'+c+'"></b>').join('');
