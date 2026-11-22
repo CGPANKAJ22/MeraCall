@@ -323,6 +323,21 @@
   </div>
 </div>
 
+<!-- UPDATE ZAROORI: naya version install kiye bina app nahi chalegi -->
+<div class="screen" id="updateScreen">
+  <header><h1>📞 MeraCall</h1></header>
+  <div class="content">
+    <div class="card" style="text-align:center">
+      <div style="font-size:50px">⬆️</div>
+      <h2 style="margin:6px 0">Update zaroori hai</h2>
+      <p class="hint" style="font-size:14px">MeraCall ka naya version aaya hai. Update kiye bina call, chat aur status nahi chalenge.</p>
+      <button class="btn green" id="updNowBtn">Abhi update karein</button>
+      <p class="hint">Update ke baad app apne aap chalu ho jayegi.</p>
+    </div>
+    <p class="credit">Built by <b>Pankaj Jaiswal</b></p>
+  </div>
+</div>
+
 <!-- 3. CHAT -->
 <div class="screen" id="chatScreen">
   <header>
@@ -716,6 +731,7 @@ function iceServers(){
 
 // ================= Peer (signalling) =================
 function startPeer(){
+  if (mustUpd || (Native.mustUpdate && Native.mustUpdate())) { window.onMustUpdate(); return; }
   if (typeof Peer === 'undefined') { setStatus(false, 'Internet nahi hai'); setTimeout(()=>location.reload(), 5000); return; }
   if (peer) { try{ peer.destroy(); }catch(e){} }
   setStatus(false, 'Connect ho raha hai…');
@@ -744,7 +760,7 @@ function startPeer(){
     }
   });
 
-  peer.on('connection', c => setupConn(c));
+  peer.on('connection', c => (c.metadata && c.metadata.lane) ? setupLane(c) : setupConn(c));
   peer.on('call', mc => onIncomingCall(mc));
 }
 
@@ -817,7 +833,7 @@ function onData(num, d){
       if ((d.t === 'gmsg' || d.t === 'ginfo') && VERIFY_REQUIRED && !d._checked) { isTrusted(num).then(ok=>{ if (ok) onGroupData(num, Object.assign({}, d, { _checked:true })); }); break; }
       onGroupData(num, d); break;
     }
-    case 'fstart': case 'fready': case 'fno': case 'fchunk': case 'fend': case 'fdone': {
+    case 'fstart': case 'fready': case 'fno': case 'fchunk': case 'fchunk2': case 'fend': case 'fdone': {
       if (d.t === 'fstart' && VERIFY_REQUIRED && !d._checked) { isTrusted(num).then(ok=>{ if (ok) onFileData(num, Object.assign({}, d, { _checked:true })); }); break; }
       onFileData(num, d); break;
     }
@@ -831,7 +847,7 @@ function onData(num, d){
     case 'del': {
       const msgs = getMsgs(num), m = msgs.find(x=>x.id === d.id && x.from === 'them');
       if (m && !m.deleted) { Object.assign(m, { deleted:true, text:'', thumb:'' }); saveMsgs(num, msgs); if (current==='chatScreen' && chatWith===num) renderMsgs(); }
-      if (inFiles[d.id]) { delete inFiles[d.id]; store.set('inF', inFiles); if (Native.fileAbort) Native.fileAbort(d.id); }
+      if (inFiles[d.id]) { delete inFiles[d.id]; delete inMem[d.id]; store.set('inF', inFiles); if (Native.fileAbort) Native.fileAbort(d.id); }
       send(num, { t:'delack', id:d.id });
       break;
     }
@@ -925,7 +941,7 @@ function renderMsgs(){
     const b = e.target && e.target.closest ? e.target.closest('[data-fid]') : null; if (!b) return;
     const m = getMsgs(chatWith).find(x=>x.id === b.dataset.fid); if (!m) return;
     if (m.uri && Native.fileOpen) Native.fileOpen(m.uri, m.mime);
-    else if (m.from === 'me' && !m.ok && !outFiles[m.id]) attachFile();
+    else if (m.from === 'me' && !m.ok && !outFiles[m.id]) attachMenu();
   };
 }
 
@@ -992,8 +1008,10 @@ async function setMyDp(){
   const f = await pickFile('image/*'); if (!f) return;
   $('dpMsg').textContent = 'Photo lag rahi hai…';
   try {
-    const r = await compressImage(f, 256, 40*1024, true);
-    let img = thumbOf(r.canvas, 256, 0.8); if (img.length > 58000) img = thumbOf(r.canvas, 200, 0.7);
+    let img = '';
+    const nr = nativeCompress(256, 38*1024, true, 0);
+    if (nr && nr.img.length <= 58000) img = nr.img;
+    else { const r = await compressImage(f, 256, 40*1024, true); img = thumbOf(r.canvas, 256, 0.8); if (img.length > 58000) img = thumbOf(r.canvas, 200, 0.7); }
     await fb('dp/' + me.num + '.json', { method:'PUT', body: JSON.stringify({ img, ts: { '.sv':'timestamp' } }) }, true);
     dpCache[me.num] = { img, at: Date.now() }; store.set('dpc', dpCache);
     refreshAvatars(); $('dpMsg').textContent = '✅ DP lag gayi';
@@ -1089,10 +1107,15 @@ async function pickStatusPhoto(){
   const f = await pickFile('image/*'); if (!f) return;
   toast('Photo taiyaar ho rahi hai…', 1500);
   try {
-    const r = await compressImage(f, 1080, 200*1024);
-    let data = r.canvas.toDataURL('image/jpeg', 0.8), q = 0.7;
-    while (data.length > 280000 && q > 0.3) { data = r.canvas.toDataURL('image/jpeg', q); q -= 0.1; }
-    if (data.length > 290000) data = thumbOf(r.canvas, 720, 0.6);
+    let data = '';
+    const nr = nativeCompress(1080, 200*1024, false, 0);
+    if (nr && nr.img.length <= 290000) data = nr.img;
+    else {
+      const r = await compressImage(f, 1080, 200*1024);
+      data = r.canvas.toDataURL('image/jpeg', 0.8); let q = 0.7;
+      while (data.length > 280000 && q > 0.3) { data = r.canvas.toDataURL('image/jpeg', q); q -= 0.1; }
+      if (data.length > 290000) data = thumbOf(r.canvas, 720, 0.6);
+    }
     openStatusEditor('photo');      // (ye seImgData khaali karta hai, isliye photo baad me rakho)
     seImgData = data;
     $('seImg').src = data;
@@ -1175,14 +1198,30 @@ async function deleteMyStatus(){
 
 // ================= Chat files: photo / video / PDF — seedha phone se phone (P2P) =================
 const CHUNK = 48 * 1024;
-const LIMIT = { image: 15*1024*1024, video: 50*1024*1024, pdf: 25*1024*1024 };
+const LIMIT = { image: 50*1024*1024, video: 200*1024*1024, pdf: 100*1024*1024, doc: 100*1024*1024 };
+// Tez tareeka (v2): 64 KB ke number wale tukde, 3 alag raaston (lanes) se ek saath; saamne tukde apni jagah jud kar ek file
+const CH2 = 64 * 1024, LANES = 3;
+const lanes = {};   // num -> [DataConnection raw]
+// Document: Word, Excel, PowerPoint, text, CSV, ZIP, OpenOffice (APK jaisi chalne wali file nahi)
+const DOC_MIME = /^(application\/(msword|vnd\.openxmlformats-officedocument\.[a-z.]+|vnd\.ms-(excel|powerpoint)|vnd\.oasis\.opendocument\.[a-z.]+|rtf|zip|x-zip-compressed)|text\/(plain|csv))$/;
+const EXT_MIME = { pdf:'application/pdf', doc:'application/msword', docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls:'application/vnd.ms-excel', xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ppt:'application/vnd.ms-powerpoint',
+  pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation', txt:'text/plain', csv:'text/csv', zip:'application/zip', rtf:'application/rtf',
+  odt:'application/vnd.oasis.opendocument.text', ods:'application/vnd.oasis.opendocument.spreadsheet', jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', mp4:'video/mp4' };
 const outFiles = {};            // id -> { num, blob, meta }  (bhejne wali, sirf app chalu rehne tak)
 const inFiles = store.get('inF', {});   // id -> { num, name, mime, size, got }  (aa rahi file, resume ke liye)
 const sendingNow = {};          // num -> id (ek waqt me ek file)
 const sleep = ms => new Promise(r=>setTimeout(r, ms));
-function fileKind(mime){ return /^image\//.test(mime) ? 'image' : /^video\//.test(mime) ? 'video' : mime === 'application/pdf' ? 'pdf' : 'other'; }
+function fileKind(mime){ return /^image\//.test(mime) ? 'image' : /^video\//.test(mime) ? 'video' : mime === 'application/pdf' ? 'pdf' : DOC_MIME.test(mime) ? 'doc' : 'other'; }
+function mimeOf(f){ const ext = String(f.name || '').split('.').pop().toLowerCase(); return (f.type && f.type !== 'application/octet-stream') ? f.type : (EXT_MIME[ext] || f.type || ''); }
 function fmtSize(b){ return b > 1048576 ? (b/1048576).toFixed(1)+' MB' : Math.max(1, Math.round(b/1024))+' KB'; }
-function fileLabel(m){ return /^image\//.test(m.mime) ? '📷 Photo' : /^video\//.test(m.mime) ? '🎬 Video' : '📄 ' + m.name; }
+function fileLabel(m){ return /^image\//.test(m.mime) ? '📷 Photo' : /^video\//.test(m.mime) ? '🎬 Video' : (m.mime === 'application/pdf' ? '📄 ' : '📁 ') + m.name; }
+/** Photo ko Android se chhota karo (WebView canvas badi photo par kaali deta hai). Na ho to null */
+function nativeCompress(maxSide, maxBytes, square, thumbSide){
+  if (!Native.compressPicked) return null;
+  try { const r = JSON.parse(Native.compressPicked(maxSide, maxBytes, !!square, thumbSide || 0) || '{}'); return r && r.img && /^data:image\/jpeg;base64,/.test(r.img) ? r : null; } catch(e) { return null; }
+}
+function dataUrlToBlob(d){ const b = atob(d.split(',')[1]); const u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return new Blob([u], { type:'image/jpeg' }); }
 function safeThumb(t){ return typeof t === 'string' && t.length < 30000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(t) ? t : ''; }
 function toB64(u8){ let s = ''; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode.apply(null, u8.subarray(i, i + 8192)); return btoa(s); }
 
@@ -1211,22 +1250,37 @@ function thumbOf(canvas, side, q){
   return c.toDataURL('image/jpeg', q || 0.6);
 }
 
-async function attachFile(){
+/** 📎: pehle poochho kya bhejna hai */
+function attachMenu(){
+  if (!chatWith) return;
+  modal('Kya bhejna hai?', '', [
+    { label:'📷 Photo', cls:'', fn:()=>attachFile('image/*') },
+    { label:'🎬 Video (original, 200 MB tak)', cls:'', fn:()=>attachFile('video/*') },
+    { label:'📄 PDF', cls:'', fn:()=>attachFile('application/pdf') },
+    { label:'📁 Document (original photo, Word, Excel, PPT…)', cls:'', fn:()=>attachFile('image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rtf,.odt,.ods,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/csv,application/zip', true) },
+    { label:'Band karein', cls:'ghost', fn:()=>{} } ]);
+}
+/** asDoc = Document ki tarah: photo bina chhoti kiye, 100% original quality */
+async function attachFile(accept, asDoc){
   if (!chatWith) return;
   const num = chatWith;
-  const f = await pickFile('image/*,video/*,application/pdf');
+  const f = await pickFile(accept || 'image/*,video/*,application/pdf');
   if (!f) return;
-  const mime = f.type || (/\.pdf$/i.test(f.name) ? 'application/pdf' : '');
+  const mime = mimeOf(f);
   const kind = fileKind(mime);
-  if (kind === 'other') return toast('Sirf photo, video ya PDF bhej sakte hain');
+  if (kind === 'other') return toast('Ye file nahi bhej sakte. Photo, video, PDF ya document chuniye.');
   let blob = f, name = f.name || 'file', thumb = '', outMime = mime;
-  if (kind === 'image') {
+  if (kind === 'image' && asDoc) toast('Photo original quality me ja rahi hai', 2000);
+  if (kind === 'image' && !asDoc) {
     toast('Photo taiyaar ho rahi hai…', 1500);
-    try { const r = await compressImage(f, 1600, 700*1024); blob = r.blob; thumb = thumbOf(r.canvas, 180); name = name.replace(/\.[^.]+$/, '') + '.jpg'; outMime = 'image/jpeg'; } catch(e) {}
+    const nr = nativeCompress(1600, 700*1024, false, 180);
+    if (nr) { blob = dataUrlToBlob(nr.img); thumb = nr.thumb || ''; name = name.replace(/\.[^.]+$/, '') + '.jpg'; outMime = 'image/jpeg'; }
+    else { try { const r = await compressImage(f, 1600, 700*1024); blob = r.blob; thumb = thumbOf(r.canvas, 180); name = name.replace(/\.[^.]+$/, '') + '.jpg'; outMime = 'image/jpeg'; } catch(e) {} }
   }
   if (blob.size > LIMIT[kind]) return toast((kind === 'video' ? 'Video' : 'File') + ' bahut badi hai (zyada se zyada ' + fmtSize(LIMIT[kind]) + ')', 3500);
-  if (kind === 'video' && blob.size > 15*1024*1024) toast('Badi video hai — WiFi par jaldi jayegi', 3000);
-  const m = { id: uid() + uid(), from:'me', kind:'file', name, mime: outMime, size: blob.size, thumb, ts: Date.now(), ok:false, prog:0 };
+  if (!blob.size) return toast('Ye file khaali hai');
+  if (kind === 'video' && blob.size > 30*1024*1024) toast('Badi video hai — WiFi par jaldi jayegi', 3000);
+  const m = { id: uid() + uid(), from:'me', kind:'file', name, mime: outMime, size: blob.size, thumb, ts: Date.now(), ok:false, prog:0, doc: !!asDoc };
   const msgs = getMsgs(num); msgs.push(m); saveMsgs(num, msgs);
   outFiles[m.id] = { num, blob, meta: m };
   touchContact(num, null, 'Aap: ' + fileLabel(m));
@@ -1243,7 +1297,7 @@ function pumpFiles(num){
   if (!c || !c.open) { getConn(num); return; }
   const o = outFiles[id], m = o.meta;
   sendingNow[num] = id;
-  send(num, { t:'fstart', id, name:m.name, mime:m.mime, size:m.size, thumb:m.thumb, ts:m.ts, from:me.name });
+  send(num, { t:'fstart', id, name:m.name, mime:m.mime, size:m.size, thumb:m.thumb, ts:m.ts, from:me.name, doc: !!m.doc, v:2, ch:CH2 });
   clearTimeout(o.wait);
   o.wait = setTimeout(()=>{ if (sendingNow[num] === id && !o.streaming) sendingNow[num] = null; }, 25000);
 }
@@ -1267,6 +1321,126 @@ async function streamFile(num, id, from){
   } catch(e) { /* net toota: dobara judne par wahin se aage */ }
   o.streaming = false;
   if (sendingNow[num] === id) sendingNow[num] = null;
+}
+
+// ---------- v2: tez, kai raaste ----------
+function rangesToList(r, total){ const out = []; (r || []).forEach(([a, b])=>{ for (let i = Math.max(0, a); i <= Math.min(b, total - 1); i++) out.push(i); }); return out; }
+function listToRanges(arr){ const r = []; let s = -1, p = -2; arr.forEach(i=>{ if (i !== p + 1) { if (s >= 0) r.push([s, p]); s = i; } p = i; }); if (s >= 0) r.push([s, p]); return r; }
+
+/** Saamne wale ke saath binary raaste (lanes) kholo; jitne khul jayein unhe lautao */
+function openLanes(num){
+  return new Promise(res=>{
+    const have = (lanes[num] || []).filter(c=>c.open);
+    lanes[num] = have;
+    if (!peer || !peer.open) return res(have);
+    const need = LANES - have.length;
+    if (need <= 0) return res(have);
+    let pending = need;
+    const done = ()=>{ if (--pending <= 0) res(lanes[num].filter(c=>c.open)); };
+    for (let k = 0; k < need; k++) {
+      let c; try { c = peer.connect(PREFIX + num, { reliable: true, serialization: 'raw', metadata: { lane: 1 } }); } catch(e) { done(); continue; }
+      if (!c) { done(); continue; }
+      let fin = false; const t = setTimeout(()=>{ if (!fin) { fin = true; done(); } }, 8000);
+      c.on('open', ()=>{ if (fin) return; fin = true; clearTimeout(t); lanes[num].push(c); done(); });
+      c.on('error', ()=>{ if (!fin) { fin = true; clearTimeout(t); done(); } });
+      c.on('close', ()=>{ lanes[num] = (lanes[num] || []).filter(x=>x !== c); });
+    }
+  });
+}
+function frameOf(id, idx, payload){
+  const idB = new TextEncoder().encode(id), f = new Uint8Array(1 + idB.length + 4 + payload.length);
+  f[0] = idB.length; f.set(idB, 1); new DataView(f.buffer).setUint32(1 + idB.length, idx); f.set(payload, 1 + idB.length + 4);
+  return f;
+}
+
+async function streamFile2(num, id, missing){
+  const o = outFiles[id];
+  if (!o || o.streaming) return;
+  clearTimeout(o.wait); o.streaming = true;
+  const total = Math.ceil(o.blob.size / CH2);
+  const queue = missing && missing.length ? missing.slice() : Array.from({ length: total }, (_, i)=>i);
+  o.sent = total - queue.length;
+  const ls = await openLanes(num);
+  const ctl = conns[num];
+  const workers = (ls.length ? ls : [null]).map(lane=>(async()=>{
+    while (queue.length && outFiles[id]) {
+      const via = lane || ctl;
+      if (!via || !via.open) break;
+      const idx = queue.shift();
+      try {
+        const dc = via.dataChannel;
+        while (dc && dc.bufferedAmount > 4*1024*1024) { await sleep(15); if (!via.open) throw new Error('band'); }
+        const buf = new Uint8Array(await o.blob.slice(idx * CH2, (idx + 1) * CH2).arrayBuffer());
+        if (lane) lane.send(frameOf(id, idx, buf).buffer);
+        else via.send({ t:'fchunk2', id, i: idx, d: buf });      // raaste na khule: purane connection se
+        o.sent++;
+        setProg(num, id, Math.floor(o.sent * 100 / total));
+      } catch(e) { queue.unshift(idx); break; }   // ye raasta toota: tukda wapas line me
+    }
+  })());
+  await Promise.all(workers);
+  o.streaming = false;
+  if (queue.length && outFiles[id]) { if (sendingNow[num] === id) sendingNow[num] = null; return; }   // baaki: dobara judne par
+  // sab bhej diya: saamne wala "fdone" bolega; na bole to 20 sec baad poochho kya bacha
+  clearTimeout(o.wait);
+  o.wait = setTimeout(()=>{ if (outFiles[id]) { if (sendingNow[num] === id) sendingNow[num] = null; pumpFiles(num); } }, 20000);
+}
+
+// ---------- v2: aane wale tukde ----------
+const inMem = {};   // id -> { have: Uint8Array, count, total }
+function inState(id){
+  const inf = inFiles[id]; if (!inf) return null;
+  if (!inMem[id]) {
+    const total = Math.ceil(inf.size / inf.ch), have = new Uint8Array(total); let count = 0;
+    const s = inf.have || ''; for (let i = 0; i < total && i < s.length; i++) if (s[i] === '1') { have[i] = 1; count++; }
+    inMem[id] = { have, count, total, saved: 0 };
+  }
+  return inMem[id];
+}
+function persistHave(id, force){
+  const st = inMem[id], inf = inFiles[id]; if (!st || !inf) return;
+  if (!force && Date.now() - st.saved < 2000) return;
+  st.saved = Date.now(); inf.have = Array.from(st.have).join(''); store.set('inF', inFiles);
+}
+function gotChunk(num, id, idx, u8){
+  const inf = inFiles[id];
+  if (!inf || inf.num !== num || inf.v !== 2) return;
+  const st = inState(id);
+  if (!st || idx < 0 || idx >= st.total || st.have[idx]) return;
+  const expect = idx === st.total - 1 ? inf.size - idx * inf.ch : inf.ch;
+  if (u8.length !== expect) return;
+  if (Native.fileWriteAt && !Native.fileWriteAt(id, idx * inf.ch, toB64(u8))) return;
+  st.have[idx] = 1; st.count++;
+  setProg(num, id, Math.floor(st.count * 100 / st.total));
+  persistHave(id);
+  if (st.count === st.total) finishIncoming(num, id);
+}
+function finishIncoming(num, id){
+  const inf = inFiles[id]; if (!inf) return;
+  const uri = Native.fileFinish ? Native.fileFinish(id, inf.name, inf.mime) : 'mem:' + id;
+  delete inFiles[id]; delete inMem[id]; store.set('inF', inFiles);
+  const m = updateFileMsg(num, id, { uri: uri || '', prog:100, fail: !uri });
+  send(num, { t:'fdone', id });
+  markSeen(num);
+  if (m) {
+    const viewing = current === 'chatScreen' && chatWith === num && Native.isForeground();
+    if (!viewing) { const ct = contacts[num]; if (ct) { ct.unread = (ct.unread || 0) + 1; saveContacts(); renderRecent(); } Native.notifyMessage(num, contactName(num), fileLabel(m)); }
+  }
+}
+/** Binary raasta (lane): sirf tukde, kisi aur kaam ka nahi */
+function setupLane(c){
+  const num = c.peer.replace(PREFIX, '');
+  c.on('data', async data=>{
+    try {
+      let ab = data;
+      if (ab && typeof ab.arrayBuffer === 'function' && !(ab instanceof ArrayBuffer)) ab = await ab.arrayBuffer();
+      const u8 = ab instanceof Uint8Array ? ab : new Uint8Array(ab);
+      const n = u8[0]; if (!n || n > 40 || u8.length < 1 + n + 4) return;
+      const id = new TextDecoder().decode(u8.subarray(1, 1 + n));
+      const idx = new DataView(u8.buffer, u8.byteOffset + 1 + n, 4).getUint32(0);
+      gotChunk(num, id, idx, u8.subarray(1 + n + 4));
+    } catch(e) {}
+  });
 }
 
 let progSave = 0;
@@ -1296,17 +1470,35 @@ function onFileData(num, d){
       const msgs = getMsgs(num); let m = msgs.find(x=>x.id === d.id);
       if (m && m.uri) { send(num, { t:'fdone', id:d.id }); return; }   // pehle hi aa chuki
       if (!m) {
-        m = { id:d.id, from:'them', kind:'file', name, mime, size, thumb: safeThumb(d.thumb), ts: d.ts || Date.now(), prog:0, uri:'' };
+        m = { id:d.id, from:'them', kind:'file', name, mime, size, thumb: safeThumb(d.thumb), ts: d.ts || Date.now(), prog:0, uri:'', doc: !!d.doc };
         msgs.push(m); saveMsgs(num, msgs);
         touchContact(num, d.from, fileLabel(m));
         if (current === 'chatScreen' && chatWith === num) renderMsgs();
+      }
+      if (d.v === 2 && d.ch === CH2 && Native.fileOpen2) {
+        const prev = inFiles[d.id];
+        if (!(prev && prev.v === 2)) {
+          if (!Native.fileOpen2(d.id, size)) { send(num, { t:'fno', id:d.id }); return; }
+          inFiles[d.id] = { num, name, mime, size, v:2, ch:CH2, have:'' }; store.set('inF', inFiles);
+        }
+        const st = inState(d.id), miss = [];
+        for (let i = 0; i < st.total; i++) if (!st.have[i]) miss.push(i);
+        if (!miss.length) { finishIncoming(num, d.id); return; }
+        send(num, { t:'fready', id:d.id, v:2, miss: listToRanges(miss) });
+        return;
       }
       const have = parseInt(Native.fileBegin ? Native.fileBegin(d.id) : '0', 10) || 0;
       inFiles[d.id] = { num, name, mime, size, got: have }; store.set('inF', inFiles);
       send(num, { t:'fready', id:d.id, from: have });
       return;
     }
-    case 'fready': if (outFiles[d.id] && outFiles[d.id].num === num) streamFile(num, d.id, +d.from || 0); return;
+    case 'fready': {
+      const o = outFiles[d.id]; if (!o || o.num !== num) return;
+      if (d.v === 2) streamFile2(num, d.id, rangesToList(d.miss, Math.ceil(o.blob.size / CH2)));
+      else streamFile(num, d.id, +d.from || 0);     // purana version: ek raasta
+      return;
+    }
+    case 'fchunk2': { const u8 = d.d instanceof Uint8Array ? d.d : new Uint8Array(d.d || []); gotChunk(num, d.id, +d.i, u8); return; }
     case 'fno': if (outFiles[d.id]) { delete outFiles[d.id]; sendingNow[num] = null; updateFileMsg(num, d.id, { fail:true }); pumpFiles(num); } return;
     case 'fchunk': {
       const inf = inFiles[d.id];
@@ -1338,6 +1530,7 @@ function onFileData(num, d){
     }
     case 'fdone': {
       if (outFiles[d.id]) { clearTimeout(outFiles[d.id].wait); delete outFiles[d.id]; }
+      if (inMem[d.id]) delete inMem[d.id];
       if (sendingNow[num] === d.id) sendingNow[num] = null;
       updateFileMsg(num, d.id, { ok:true, prog:100 });
       pumpFiles(num);
@@ -1347,14 +1540,14 @@ function onFileData(num, d){
 }
 
 function fileBubble(m){
-  const mine = m.from === 'me', img = /^image\//.test(m.mime);
+  const mine = m.from === 'me', img = /^image\//.test(m.mime) && !m.doc;
   const done = mine ? m.ok : !!m.uri;
   const lost = mine && !m.ok && !outFiles[m.id] && !m.fail;    // app band hui: file yaad nahi
   let state = '';
   if (m.fail || lost) state = '❌ nahi gaya' + (mine ? ' — dobara bhejein' : '') + ' · ';
   else if (!done) state = '<span class="fpct">' + (m.prog ? m.prog + '% · ' : (mine ? '🕓 ' : '⬇️ ')) + '</span>';
   const body = img && m.thumb ? '<img class="fthumb" src="' + esc(safeThumb(m.thumb)) + '">'
-    : '<div class="fcard">' + (/^video\//.test(m.mime) ? '🎬' : img ? '📷' : '📄') + ' <b>' + esc(m.name) + '</b><br><small>' + fmtSize(m.size) + (done && !mine ? ' · dabakar kholein' : '') + '</small></div>';
+    : '<div class="fcard">' + (/^video\//.test(m.mime) ? '🎬' : /^image\//.test(m.mime) ? '🖼️' : m.mime === 'application/pdf' ? '📄' : '📁') + ' <b>' + esc(m.name) + '</b><br><small>' + fmtSize(m.size) + (m.doc && /^image\//.test(m.mime) ? ' · original' : '') + (done && !mine ? ' · dabakar kholein' : '') + '</small></div>';
   const bar = (!done && !m.fail && !lost) ? '<div class="fbar"><i style="width:' + (m.prog || 0) + '%"></i></div>' : '';
   return '<div class="msg file ' + (mine ? 'me' : 'them') + '" data-fid="' + esc(m.id) + '" data-mid="' + esc(m.id) + '">' + body + bar
     + '<div class="t">' + state + fmtTime(m.ts) + (mine && m.ok ? ' ' + tick(m) : '') + '</div></div>';
@@ -1959,7 +2152,7 @@ $('giRenameBtn').onclick = ()=>{ const g = groups[chatGroup], n = $('giRename').
 $('chatVoice').onclick = ()=> startCall(chatWith, false);
 $('chatVideo').onclick = ()=> startCall(chatWith, true);
 $('sendBtn').onclick = sendMsg;
-$('attachBtn').onclick = attachFile;
+$('attachBtn').onclick = attachMenu;
 $('dpSetBtn').onclick = setMyDp;
 $('dpDelBtn').onclick = delMyDp;
 $('stTextBtn').onclick = ()=>openStatusEditor('text');
@@ -2028,6 +2221,7 @@ window.onAndroidBack = function(){
   if (current === 'chatScreen' || current === 'settingsScreen') { chatWith=null; chatGroup=null; show('homeScreen'); renderRecent(); return true; }
   if (current === 'resetScreen') { show('setupScreen'); return true; }
   if (current === 'statusView') { closeStatus(); return true; }
+  if (current === 'updateScreen') return false;
   if (current === 'groupInfo') { openGroup(chatGroup); return true; }
   if (current === 'groupPick') { $('gpBack').onclick(); return true; }
   if (current === 'statusEdit') { show('homeScreen'); switchTab('tabStatus'); return true; }
@@ -2049,6 +2243,7 @@ function boot(){
   renderVerify();
   loadPhoneContacts();
   refreshRegistry();
+  if (!mustUpd) setTimeout(showWhatsNew, 800);
   const p = String(Native.takePending() || '');
   if (p) { const [a, b] = p.split(':'); setTimeout(()=>window.nativeAction(a, b), 400); }
 }
@@ -2082,6 +2277,33 @@ $('chPassBtn').onclick = async ()=>{
     $('chPassMsg').textContent = e.message === 'WRONG_PASSWORD' ? 'Purana password galat hai' : loginError(e.message);
   }
 };
+
+// ----- Zaroori update: jab tak naya APK nahi, app band -----
+let mustUpd = false;
+window.onMustUpdate = function(){
+  if (call.state !== 'idle') { setTimeout(window.onMustUpdate, 5000); return; }   // chalti call poori hone do
+  mustUpd = true;
+  try { if (peer) peer.destroy(); } catch(e) {}
+  peer = null;
+  setStatus(false, 'Update zaroori hai');
+  show('updateScreen');
+};
+$('updNowBtn').onclick = ()=>{ if (Native.startUpdate) Native.startUpdate(); };
+
+// ----- Update ke baad: "kya naya hai" -----
+function showWhatsNew(){
+  const key = (cfg.version || '') + '/' + (cfg.webVer || 0);
+  const seen = store.get('seenNote', null);
+  store.set('seenNote', key);
+  if (seen === null || seen === key) return;               // pehli baar install: kuch nahi
+  const apkChanged = String(seen).split('/')[0] !== String(cfg.version || '');
+  const note = String((apkChanged ? cfg.note : cfg.webNote) || cfg.note || '').trim();
+  if (!note) return;
+  const pts = note.split('|').map(s=>s.trim()).filter(Boolean).slice(0, 10);
+  modal('✨ Is update me kya naya hai', '', [{ label:'Theek hai', cls:'green', fn:()=>{} }]);
+  $('modalText').innerHTML = '<span style="font-size:12px">Version ' + esc(cfg.version || '') + '</span><br>' + pts.map(p=>'✅ ' + esc(p)).join('<br>');
+  $('modalText').style.fontSize = '15px'; $('modalText').style.lineHeight = '1.7';
+}
 
 // Verify gate: jab tak ✅ nahi, aage nahi
 async function gate(){
