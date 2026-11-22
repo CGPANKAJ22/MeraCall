@@ -52,6 +52,7 @@
   .msg.file{padding:5px}
   .fthumb{display:block;max-width:210px;max-height:260px;border-radius:10px}
   .fcard{padding:8px 10px;min-width:170px;font-size:14px}
+  .msg .dl{color:#25d366}
   .fcard small{color:var(--muted)}
   .msg.file .t{padding:0 6px 2px}
   .fbar{height:4px;background:#0001;border-radius:2px;margin:4px 6px 0;overflow:hidden}
@@ -755,7 +756,7 @@ function startPeer(){
   setStatus(false, 'Connect ho raha hai…');
   peer = new Peer(PREFIX + me.num, { config: { iceServers: iceServers() }, debug: 0 });
 
-  peer.on('open', ()=> { setStatus(true, 'Online — call aa sakti hai'); flushPending(); webLinks.forEach(connectWeb); });
+  peer.on('open', ()=> { setStatus(true, 'Online — call aa sakti hai'); flushPending(); publishPk(); checkPcInbox(); webLinks.forEach(connectWeb); });
   peer.on('disconnected', ()=> { setStatus(false, 'Dobara connect ho raha hai…'); setTimeout(()=>{ if(peer && !peer.destroyed && peer.disconnected) peer.reconnect(); }, 2000); });
   peer.on('close', ()=> setStatus(false, 'Offline'));
   peer.on('error', err => {
@@ -878,6 +879,7 @@ function onData(num, d){
       if (d.t === 'fstart' && VERIFY_REQUIRED && !d._checked) { isTrusted(num).then(ok=>{ if (ok) onFileData(num, Object.assign({}, d, { _checked:true })); }); break; }
       onFileData(num, d); break;
     }
+    case 'pcfile': { checkPcInbox(); break; }
     case 'seen': {
       if (!Array.isArray(d.ids)) break;
       const msgs = getMsgs(num); let ch = false;
@@ -982,6 +984,7 @@ function renderMsgs(){
     const b = e.target && e.target.closest ? e.target.closest('[data-fid]') : null; if (!b) return;
     const m = getMsgs(chatWith).find(x=>x.id === b.dataset.fid); if (!m) return;
     if (m.uri && Native.fileOpen) Native.fileOpen(m.uri, m.mime);
+    else if (m.from === 'them' && m.pc) downloadPc(chatWith, m.id);
     else if (m.from === 'me' && !m.ok && !outFiles[m.id]) attachMenu();
   };
 }
@@ -1330,13 +1333,13 @@ async function attachFile(accept, asDoc){
   outFiles[m.id] = { num, blob, meta: m };
   touchContact(num, null, 'Aap: ' + fileLabel(m));
   if (current === 'chatScreen' && chatWith === num) renderMsgs();
-  pumpFiles(num);
+  routeFile(num, m.id);
 }
 
 /** Agli file shuru karo (saamne wala "fready" bolega tab tukde jayenge) */
 function pumpFiles(num){
   if (sendingNow[num]) return;
-  const id = Object.keys(outFiles).find(k=>outFiles[k].num === num);
+  const id = Object.keys(outFiles).find(k=>outFiles[k].num === num && !outFiles[k].pcTry);
   if (!id) return;
   const c = conns[num];
   if (!c || !c.open) { getConn(num); return; }
@@ -1586,18 +1589,235 @@ function onFileData(num, d){
   }
 }
 
+// ================= PC Daakghar: PC chalu ho to file pehle PC par (taala-band), warna seedha P2P =================
+const PCH = 2 * 1024 * 1024;           // PC wale tukde 2 MB
+const subtle = (typeof crypto !== 'undefined' && crypto.subtle) || null;
+const b64u = {
+  enc(u8){ return btoa(String.fromCharCode.apply(null, Array.from(u8))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); },
+  dec(s){ s = String(s).replace(/-/g,'+').replace(/_/g,'/'); while (s.length % 4) s += '='; const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
+};
+function ivOf(pre, i){ const iv = new Uint8Array(12); iv.set(pre, 0); new DataView(iv.buffer).setUint32(8, i); return iv; }
+let myKeys = null;
+/** Is phone ka apna taala-chaabi jodi (chaabi kabhi phone se bahar nahi jaati) */
+async function myKeyPair(){
+  if (myKeys) return myKeys;
+  if (!subtle) return null;
+  let j = store.get('ek', null);
+  if (!j || !j.priv || !j.pub) {
+    const kp = await subtle.generateKey({ name:'ECDH', namedCurve:'P-256' }, true, ['deriveKey']);
+    j = { priv: await subtle.exportKey('jwk', kp.privateKey), pub: await subtle.exportKey('jwk', kp.publicKey) };
+    store.set('ek', j);
+  }
+  myKeys = { priv: await subtle.importKey('jwk', j.priv, { name:'ECDH', namedCurve:'P-256' }, false, ['deriveKey']), pubStr: j.pub.x + '.' + j.pub.y };
+  return myKeys;
+}
+/** Apna taala (public key) Firebase par: taaki log sirf mere liye file lock kar sakein */
+let pkDone = false;
+async function publishPk(){
+  if (!HAS_AUTH || !me || pkDone) return;
+  try { pkDone = true; const k = await myKeyPair(); if (!k) return; await fb('pk/' + me.num + '.json', { method:'PUT', body: JSON.stringify(k.pubStr) }, true); } catch(e) { pkDone = false; }
+}
+async function sharedKey(theirPub){
+  const k = await myKeyPair(); const [x, y] = String(theirPub).split('.');
+  const pub = await subtle.importKey('jwk', { kty:'EC', crv:'P-256', x, y, ext:true }, { name:'ECDH', namedCurve:'P-256' }, false, []);
+  return subtle.deriveKey({ name:'ECDH', public: pub }, k.priv, { name:'AES-GCM', length:256 }, false, ['encrypt', 'decrypt']);
+}
+async function getPk(num){ try { const v = await fb('pk/' + num + '.json'); return typeof v === 'string' && v.includes('.') ? v : ''; } catch(e) { return ''; } }
+async function sealHdr(theirPub, obj){
+  const key = await sharedKey(theirPub), iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await subtle.encrypt({ name:'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(obj))));
+  const out = new Uint8Array(12 + ct.length); out.set(iv); out.set(ct, 12); return b64u.enc(out);
+}
+async function openHdr(fromNum, hdr){
+  const pk = await getPk(fromNum); if (!pk) return null;
+  const key = await sharedKey(pk), u = b64u.dec(hdr);
+  const pt = await subtle.decrypt({ name:'AES-GCM', iv: u.subarray(0, 12) }, key, u.subarray(12));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+// PC ka pata (Firebase "relay") + zinda hai ya nahi
+const relay = { url:'', at:0, ok:false };
+async function relayUrl(force){
+  if (!HAS_AUTH || !me || !subtle) return '';
+  if (!force && Date.now() - relay.at < 60000) return relay.ok ? relay.url : '';
+  relay.at = Date.now(); relay.ok = false;
+  try {
+    const r = await fb('relay.json');
+    if (r && typeof r.url === 'string' && /^https:\/\/[A-Za-z0-9.-]+$/.test(r.url) && Math.abs(Date.now() - (+r.ts || 0)) < 5*60000) {
+      const ctl = new AbortController(), t = setTimeout(()=>ctl.abort(), 6000);
+      try { const p = await fetch(r.url + '/ping', { signal: ctl.signal, cache:'no-store' }); if (p.ok && (await p.json()).app === 'meracall-box') { relay.url = r.url; relay.ok = true; } }
+      finally { clearTimeout(t); }
+    }
+  } catch(e) {}
+  return relay.ok ? relay.url : '';
+}
+async function pcFetch(method, p, body, ms){
+  const base = relay.ok ? relay.url : await relayUrl(); if (!base) throw new Error('pc-off');
+  const tok = await idToken(); if (!tok) throw new Error('no-auth');
+  const ctl = new AbortController(), t = setTimeout(()=>ctl.abort(), ms || 15000);
+  try { return await fetch(base + p, { method, body: body == null ? undefined : body, headers: { 'x-num': me.num, 'x-token': tok }, signal: ctl.signal, cache:'no-store' }); }
+  finally { clearTimeout(t); }
+}
+
+/** Bhejna: PC chalu -> taala laga kar PC par. Kuch bhi gadbad -> false (tab P2P) */
+async function sendViaPc(num, m, blob){
+  if (!(await relayUrl(true))) return false;
+  const theirPk = await getPk(num); if (!theirPk) return false;      // saamne wala purane version par
+  const raw = crypto.getRandomValues(new Uint8Array(32)), pre = crypto.getRandomValues(new Uint8Array(8));
+  const fk = await subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt']);
+  const chunks = Math.ceil(blob.size / PCH);
+  const hdr = await sealHdr(theirPk, { id: m.id, k: b64u.enc(raw), p: b64u.enc(pre), name: m.name, mime: m.mime, size: blob.size, thumb: m.thumb || '', doc: !!m.doc, ts: m.ts });
+  const r1 = await pcFetch('PUT', '/f/' + m.id + '/meta', JSON.stringify({ to: num, chunks, csize: PCH + 16, size: blob.size + chunks * 16, hdr }));
+  if (!r1.ok) return false;
+  let next = 0, sent = 0, fail = false;
+  const work = async ()=>{
+    while (!fail && next < chunks && outFiles[m.id]) {
+      const i = next++;
+      const plain = new Uint8Array(await blob.slice(i * PCH, (i + 1) * PCH).arrayBuffer());
+      const ct = new Uint8Array(await subtle.encrypt({ name:'AES-GCM', iv: ivOf(pre, i) }, fk, plain));
+      let ok = false;
+      for (let t = 0; t < 3 && !ok && outFiles[m.id]; t++) {
+        try { ok = (await pcFetch('PUT', '/f/' + m.id + '/c/' + i, ct, 90000)).ok; } catch(e) {}
+        if (!ok) await sleep(1500);
+      }
+      if (!ok) { fail = true; break; }
+      sent++; setProg(num, m.id, Math.floor(sent * 100 / chunks));
+    }
+  };
+  await Promise.all([work(), work(), work()]);
+  const drop = ()=>pcFetch('DELETE', '/f/' + m.id).catch(()=>{});
+  if (!outFiles[m.id]) { drop(); return true; }        // user ne beech me hata di
+  if (fail) { drop(); return false; }
+  try { if (!(await pcFetch('POST', '/f/' + m.id + '/done')).ok) { drop(); return false; } } catch(e) { drop(); return false; }
+  return true;
+}
+/** Nayi file kahan se jaye: pehle PC, PC band/fail ho to P2P */
+async function routeFile(num, id){
+  const o = outFiles[id]; if (!o) return;
+  o.pcTry = true;
+  updateFileMsg(num, id, { via:'pc', prog:0 });
+  let ok = false; try { ok = await sendViaPc(num, o.meta, o.blob); } catch(e) { ok = false; }
+  if (!outFiles[id]) return;
+  if (ok) {
+    delete outFiles[id];
+    updateFileMsg(num, id, { pcSent: true, prog: 100 });
+    if (!send(num, { t:'pcfile', id })) getConn(num);
+    return;
+  }
+  o.pcTry = false;
+  updateFileMsg(num, id, { via:'', prog:0 });
+  pumpFiles(num);                                     // PC nahi: seedha
+}
+
+/** Paane wala: PC par mere liye kya rakha hai */
+let pcInboxBusy = false;
+async function checkPcInbox(){
+  if (!me || pcInboxBusy) return;
+  if (!(await relayUrl())) return;
+  pcInboxBusy = true;
+  try {
+    const r = await pcFetch('GET', '/inbox'); if (!r.ok) return;
+    const list = await r.json();
+    if (Array.isArray(list)) for (const it of list) { try { await gotPcItem(it); } catch(e) {} }
+  } catch(e) {} finally { pcInboxBusy = false; }
+}
+async function gotPcItem(it){
+  const num = String(it && it.from || ''); if (!/^\d{10}$/.test(num) || typeof it.id !== 'string' || it.id.length > 40) return;
+  const msgs = getMsgs(num), ex = msgs.find(x=>x.id === it.id);
+  if (ex && (ex.uri || ex.pc || ex.deleted)) return;
+  if (VERIFY_REQUIRED && !(await isTrusted(num))) return;
+  const h = await openHdr(num, it.hdr);                 // sirf mera phone khol sakta hai
+  if (!h || h.id !== it.id) return;
+  const mime = String(h.mime || ''), kind = fileKind(mime), size = +h.size || 0;
+  if (kind === 'other' || size <= 0 || size > (LIMIT[kind] || 0) + 1024) return;
+  const m = ex || { id: it.id };
+  Object.assign(m, { from:'them', kind:'file', name: String(h.name || 'file').slice(0, 80), mime, size, thumb: safeThumb(h.thumb), ts: +h.ts || Date.now(), prog:0, uri:'', doc: !!h.doc, pc: { k: h.k, p: h.p } });
+  delete m.text;
+  if (!ex) msgs.push(m);
+  saveMsgs(num, msgs);
+  touchContact(num, null, fileLabel(m));
+  const viewing = current === 'chatScreen' && chatWith === num && Native.isForeground();
+  if (!viewing) { const ct = contacts[num]; if (ct) { ct.unread = (ct.unread || 0) + 1; saveContacts(); } Native.notifyMessage(num, contactName(num), fileLabel(m) + ' — download karein'); }
+  if (current === 'chatScreen' && chatWith === num) renderMsgs();
+  renderRecent();
+}
+/** "Download" dabaya: PC se tukde, phone par taala khulo, Gallery me save, PC se mitao */
+const pcDown = {};
+async function downloadPc(num, id){
+  if (pcDown[id]) return;
+  const m = getMsgs(num).find(x=>x.id === id); if (!m || !m.pc || m.uri) return;
+  if (!(await relayUrl(true))) return toast('PC abhi band hai — PC chalu hone par download hoga', 3500);
+  pcDown[id] = true; updateFileMsg(num, id, { prog: 0 });
+  let fail = '';
+  try {
+    const pre = b64u.dec(m.pc.p), fk = await subtle.importKey('raw', b64u.dec(m.pc.k), 'AES-GCM', false, ['decrypt']);
+    const N = Math.ceil(m.size / PCH);
+    if (!Native.fileOpen2 || !Native.fileOpen2(id, m.size)) throw new Error('jagah');
+    let next = 0, got = 0;
+    const work = async ()=>{
+      while (!fail && next < N) {
+        const i = next++, want = i === N - 1 ? m.size - i * PCH : PCH;
+        let ok = false;
+        for (let t = 0; t < 3 && !ok && !fail; t++) {
+          try {
+            const r = await pcFetch('GET', '/f/' + id + '/c/' + i, null, 90000);
+            if (r.status === 404 || r.status === 403) { fail = 'gone'; break; }
+            if (r.ok) {
+              const pt = new Uint8Array(await subtle.decrypt({ name:'AES-GCM', iv: ivOf(pre, i) }, fk, new Uint8Array(await r.arrayBuffer())));
+              if (pt.length === want && Native.fileWriteAt(id, i * PCH, toB64(pt))) ok = true;
+            }
+          } catch(e) {}
+          if (!ok && !fail) await sleep(1500);
+        }
+        if (!ok) { fail = fail || 'net'; break; }
+        got++; setProg(num, id, Math.floor(got * 100 / N));
+      }
+    };
+    await Promise.all([work(), work(), work()]);
+    if (!fail) {
+      const uri = Native.fileFinish(id, m.name, m.mime);
+      if (!uri) fail = 'save';
+      else {
+        updateFileMsg(num, id, { uri, prog: 100, pc: null });
+        pcFetch('DELETE', '/f/' + id).catch(()=>{});      // le liya: PC se mitao
+        send(num, { t:'fdone', id });
+        markSeen(num);
+      }
+    }
+  } catch(e) { fail = fail || 'err'; }
+  delete pcDown[id];
+  if (fail) {
+    if (Native.fileAbort) Native.fileAbort(id);
+    if (fail === 'gone') { updateFileMsg(num, id, { pc: null, fail: true }); toast('Ye file ab PC par nahi hai (hata di gayi / 7 din purani)', 3500); }
+    else { updateFileMsg(num, id, { prog: 0 }); toast('Download ruk gaya — dobara dabaiye', 3000); }
+  }
+}
+/** Bhejne wala: PC wali file saamne wale ne le li? (PC se mit gayi = pahunch gayi) */
+async function checkPcSent(){
+  if (!me || !relay.ok) return;
+  for (const num of Object.keys(contacts)) {
+    for (const m of getMsgs(num).filter(x=>x.from === 'me' && x.pcSent && !x.ok && !x.deleted)) {
+      try { const r = await pcFetch('GET', '/f/' + m.id + '/state'); if (r.status === 404) updateFileMsg(num, m.id, { ok: true }); } catch(e) { return; }
+    }
+  }
+}
+setInterval(()=>{ if (me && !mustUpd) { checkPcInbox(); checkPcSent(); } }, 60000);
+
 function fileBubble(m){
   const mine = m.from === 'me', img = /^image\//.test(m.mime) && !m.doc;
-  const done = mine ? m.ok : !!m.uri;
-  const lost = mine && !m.ok && !outFiles[m.id] && !m.fail;    // app band hui: file yaad nahi
+  const done = mine ? (m.ok || m.pcSent) : !!m.uri;
+  const lost = mine && !m.ok && !m.pcSent && !outFiles[m.id] && !m.fail;    // app band hui: file yaad nahi
+  const waitDl = !mine && m.pc && !m.uri && !pcDown[m.id];
   let state = '';
   if (m.fail || lost) state = '❌ nahi gaya' + (mine ? ' — dobara bhejein' : '') + ' · ';
-  else if (!done) state = '<span class="fpct">' + (m.prog ? m.prog + '% · ' : (mine ? '🕓 ' : '⬇️ ')) + '</span>';
+  else if (waitDl) state = '<b class="dl">⬇️ Download dabaiye</b> · ';
+  else if (mine && m.pcSent && !m.ok) state = '📦 PC par rakhi (saamne wala le sakta hai) · ';
+  else if (!done) state = (mine && m.via === 'pc' ? '📦 PC tak ' : '') + '<span class="fpct">' + (m.prog ? m.prog + '% · ' : (mine ? '🕓 ' : '⬇️ ')) + '</span>';
   const body = img && m.thumb ? '<img class="fthumb" src="' + esc(safeThumb(m.thumb)) + '">'
     : '<div class="fcard">' + (/^video\//.test(m.mime) ? '🎬' : /^image\//.test(m.mime) ? '🖼️' : m.mime === 'application/pdf' ? '📄' : '📁') + ' <b>' + esc(m.name) + '</b><br><small>' + fmtSize(m.size) + (m.doc && /^image\//.test(m.mime) ? ' · original' : '') + (done && !mine ? ' · dabakar kholein' : '') + '</small></div>';
-  const bar = (!done && !m.fail && !lost) ? '<div class="fbar"><i style="width:' + (m.prog || 0) + '%"></i></div>' : '';
+  const bar = (!done && !m.fail && !lost && !waitDl) ? '<div class="fbar"><i style="width:' + (m.prog || 0) + '%"></i></div>' : '';
   return '<div class="msg file ' + (mine ? 'me' : 'them') + '" data-fid="' + esc(m.id) + '" data-mid="' + esc(m.id) + '">' + body + bar
-    + '<div class="t">' + state + fmtTime(m.ts) + (mine && m.ok ? ' ' + tick(m) : '') + '</div></div>';
+    + '<div class="t">' + state + fmtTime(m.ts) + (mine && m.ok ? ' ' + tick(m) : mine && m.pcSent ? ' <span class="tk">✓</span>' : '') + '</div></div>';
 }
 
 // ================= Blue tick (padh liya) =================
@@ -1642,6 +1862,7 @@ function deleteForAll(num, id){
   Object.assign(m, { deleted:true, text:'', thumb:'', delPending:true });
   saveMsgs(num, msgs);
   if (outFiles[id]) { delete outFiles[id]; if (sendingNow[num] === id) sendingNow[num] = null; }
+  if (m.via === 'pc' || m.pcSent) pcFetch('DELETE', '/f/' + id).catch(()=>{});   // PC par rakhi thi: wahan se bhi
   if (!send(num, { t:'del', id })) getConn(num);   // offline: judte hi jayega
   if (current === 'chatScreen' && chatWith === num) renderMsgs();
   toast('Sabke liye hata diya');
