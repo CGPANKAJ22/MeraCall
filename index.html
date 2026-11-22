@@ -1110,8 +1110,23 @@ function timeAgo(ts){ const m = Math.floor((Date.now() - ts) / 60000); return m 
 async function fetchStatus(num){
   try {
     const d = await fb('status/' + num + '.json') || {};
+    const old = Object.keys(d).filter(sid=>!(d[sid] && d[sid].ts > Date.now() - DAY - 60000));
+    if (old.length) sweepStatus(num, old);          // 12 ghante poore: cloud se bhi hatao (koi bhi phone kar sakta hai)
     return Object.keys(d).map(sid=>Object.assign({ sid }, d[sid])).filter(s=>s && s.ts > Date.now() - DAY).sort((a,b)=>a.ts - b.ts);
   } catch(e) { return null; }
+}
+/** Purana status Firebase se mitao: pehle photo/video, phir record (rules sirf 12 ghante purane ki ijazat dete hain) */
+const sweeping = {};
+async function sweepStatus(num, sids){
+  if (!HAS_AUTH || !me) return;
+  for (const sid of sids.slice(0, 10)) {
+    const k = num + '/' + sid; if (sweeping[k]) continue; sweeping[k] = 1;
+    try {
+      for (const part of ['statusVid', 'statusImg', 'statusSeen']) await fb(part + '/' + k + '.json', { method:'DELETE' }, true).catch(()=>{});
+      await fb('status/' + k + '.json', { method:'DELETE' }, true).catch(()=>{});
+      delete imgCache[k]; if (vidCache[k]) { try { URL.revokeObjectURL(vidCache[k]); } catch(e) {} delete vidCache[k]; }
+    } finally { delete sweeping[k]; }
+  }
 }
 /** Jinke status dekhne hain: verified contacts + jinse baat hui */
 function statusPeople(){
@@ -1190,7 +1205,7 @@ async function quotaLevel(){
   return quotaLv.lv;
 }
 const ST_PHOTO_Q = [[3840, 1600*1024], [2560, 800*1024], [1600, 350*1024], [1080, 200*1024]];   // 4K tak
-const ST_VIDEO_Q = [[720, 1200000], [540, 800000], [480, 550000], [360, 350000]];                 // mid quality
+const ST_VIDEO_Q = [[720, 1000000], [540, 700000], [480, 500000], [360, 300000]];                 // mid quality, hamesha thodi compress
 const ST_VID_MAX = 6.6 * 1024 * 1024;
 function blobToDataUrl(b){ return new Promise((res, rej)=>{ const r = new FileReader(); r.onload = ()=>res(r.result); r.onerror = rej; r.readAsDataURL(b); }); }
 /** Video: 30 sec tak, mid quality (canvas + MediaRecorder se dobara banao) */
@@ -1204,8 +1219,6 @@ async function shrinkVideo(file, q, onProg){
     const W = v.videoWidth || 640, H = v.videoHeight || 360;
     const k = Math.min(1, q[0] / Math.min(W, H));
     const okType = /^video\/(mp4|webm)$/.test(file.type || '');
-    // pehle se chhoti aur 30 sec ki: waise hi
-    if (okType && full <= 30.5 && k === 1 && file.size <= Math.max(q[1] / 8 * full * 1.4, 400*1024) && file.size <= ST_VID_MAX) return { blob: file, dur: full };
     const canRec = typeof MediaRecorder !== 'undefined' && document.createElement('canvas').captureStream;
     if (!canRec) { if (okType && full <= 30.5 && file.size <= ST_VID_MAX) return { blob: file, dur: full }; throw new Error('norec'); }
     const cw = Math.max(2, Math.round(W * k / 2) * 2), chh = Math.max(2, Math.round(H * k / 2) * 2);
