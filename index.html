@@ -53,6 +53,19 @@
   .fthumb{display:block;max-width:210px;max-height:260px;border-radius:10px}
   .fcard{padding:8px 10px;min-width:170px;font-size:14px}
   .msg .dl{color:#25d366}
+  #fwd{position:fixed;inset:0;background:#0007;z-index:55;display:none;align-items:flex-end}
+  #fwd.on{display:flex}
+  .fwdbox{background:var(--card,#fff);width:100%;max-height:85vh;border-radius:18px 18px 0 0;display:flex;flex-direction:column;padding:10px 14px 14px}
+  .fwdhead{display:flex;align-items:center;gap:10px;font-size:17px;padding:4px 0 8px}
+  .fwdhead button{background:none;border:0;font-size:20px}
+  .fwdwhat{font-size:13px;color:#667;background:#f1f4f9;border-radius:10px;padding:8px 10px;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #fwdList{overflow:auto;flex:1;margin-bottom:10px}
+  #fwdList .item .chk{margin-left:auto;width:24px;height:24px;border-radius:50%;border:2px solid #c5cbd6;color:transparent;display:flex;align-items:center;justify-content:center;font-size:13px}
+  #fwdList .item.sel .chk{background:#25d366;border-color:#25d366;color:#fff}
+  .apkwarn{font-size:11px;color:#c62828;margin-top:4px}
+  .fwdtag{font-size:11px;color:#8a93a6;font-style:italic;margin-bottom:2px}
+  .mvaudio{color:#fff;font-size:18px;margin-bottom:16px;text-align:center;padding:0 16px;word-break:break-word}
+  #mvBody audio{width:90%}
   #mv{position:fixed;inset:0;background:#000;z-index:60;display:none;flex-direction:column}
   #mv.on{display:flex}
   .mvtop{display:flex;align-items:center;gap:6px;padding:8px;color:#fff;background:linear-gradient(#000d,#0000);position:absolute;top:0;left:0;right:0;z-index:3}
@@ -467,6 +480,7 @@
 </div></div>
 
 <div class="toast" id="toast"></div>
+<div id="fwd"><div class="fwdbox"><div class="fwdhead"><button id="fwdClose">✕</button><b>↪️ Forward karein</b></div><div class="fwdwhat" id="fwdWhat"></div><div class="list" id="fwdList"></div><button class="btn" id="fwdGo">↪️ Bhejo</button></div></div>
 <div id="mv"><div class="mvtop"><button id="mvClose">✕</button><div class="mvname" id="mvName"></div><button id="mvExt" title="Phone ke app me kholein">↗</button></div>
   <div id="mvBody"></div>
   <button class="mvarrow" id="mvPrev">‹</button><button class="mvarrow r" id="mvNext">›</button>
@@ -886,7 +900,7 @@ function onData(num, d){
       if (typeof d.text !== 'string' || !d.text) { send(num, { t:'ack', id:d.id }); break; }   // khaali (purane version ki galti): chhodo
       const msgs = getMsgs(num);
       if (!msgs.find(m=>m.id===d.id)) {
-        msgs.push({ id:d.id, from:'them', text:String(d.text).slice(0,4000), ts:d.ts||Date.now() });
+        msgs.push(Object.assign({ id:d.id, from:'them', text:String(d.text).slice(0,4000), ts:d.ts||Date.now() }, d.fwd ? { fwd:true } : {}));
         saveMsgs(num, msgs);
         const ct = touchContact(num, d.name, d.text);
         const viewing = current==='chatScreen' && chatWith===num && Native.isForeground();
@@ -961,7 +975,7 @@ function flushPending(onlyNum){
     const pend = getMsgs(num).filter(m=>m.from==='me' && !m.ok && m.kind !== 'file' && !m.deleted && typeof m.text === 'string' && m.text);
     if (!pend.length) return;
     const c = conns[num];
-    if (c && c.open) pend.forEach(m=>send(num, { t:'msg', id:m.id, text:m.text, ts:m.ts, name:me.name }));
+    if (c && c.open) pend.forEach(m=>send(num, { t:'msg', id:m.id, text:m.text, ts:m.ts, name:me.name, fwd: m.fwd ? 1 : 0 }));
     else if (!onlyNum) getConn(num);
   });
 }
@@ -1006,7 +1020,7 @@ function renderMsgs(){
     if (m.from==='sys') return '<div class="sys">'+esc(m.text)+' · '+fmtTime(m.ts)+'</div>';
     if (m.deleted) return '<div class="msg del '+(m.from==='me'?'me':'them')+'" data-mid="'+esc(m.id)+'">🚫 '+(m.from==='me'?'Aapne ye message hata diya':'Ye message hata diya gaya')+'<div class="t">'+fmtTime(m.ts)+'</div></div>';
     if (m.kind==='file') return fileBubble(m);
-    return '<div class="msg '+(m.from==='me'?'me':'them')+'" data-mid="'+esc(m.id)+'">'+esc(m.text)+'<div class="t">'+fmtTime(m.ts)+(m.from==='me'?' '+tick(m):'')+'</div></div>';
+    return '<div class="msg '+(m.from==='me'?'me':'them')+'" data-mid="'+esc(m.id)+'">'+(m.fwd?'<div class="fwdtag">↪️ Forwarded</div>':'')+esc(m.text)+'<div class="t">'+fmtTime(m.ts)+(m.from==='me'?' '+tick(m):'')+'</div></div>';
   }).join('') : '<div class="sys">Pehla message bhejein 👋</div>';
   el.scrollTop = el.scrollHeight;
   el.onclick = e=>{
@@ -1028,12 +1042,13 @@ function sendMsg(){
   sendTextTo(chatWith, text);
 }
 /** Kisi number ko text (phone se ya PC/Web se) */
-function sendTextTo(num, text){
+function sendTextTo(num, text, opts){
   const m = { id: uid(), from:'me', text: String(text).slice(0, 4000), ts: Date.now(), ok:false };
+  if (opts && opts.fwd) m.fwd = true;
   const msgs = getMsgs(num); msgs.push(m); saveMsgs(num, msgs);
   touchContact(num, null, 'Aap: '+m.text);
   if (current === 'chatScreen' && chatWith === num) renderMsgs();
-  if (!send(num, { t:'msg', id:m.id, text:m.text, ts:m.ts, name:me.name })) getConn(num);
+  if (!send(num, { t:'msg', id:m.id, text:m.text, ts:m.ts, name:me.name, fwd: m.fwd ? 1 : 0 })) getConn(num);
   setTimeout(()=>textToPc(num, m.id), 5000);     // 5 sec me jawab nahi = saamne wala offline: PC daakghar par rakho
 }
 
@@ -1593,7 +1608,9 @@ async function deleteMyStatus(){
 
 // ================= Chat files: photo / video / PDF — seedha phone se phone (P2P) =================
 const CHUNK = 48 * 1024;
-const LIMIT = { image: 50*1024*1024, video: 200*1024*1024, pdf: 100*1024*1024, doc: 100*1024*1024 };
+const LIMIT = { image: 50*1024*1024, video: 200*1024*1024, pdf: 100*1024*1024, doc: 100*1024*1024, audio: 100*1024*1024, file: 100*1024*1024 };
+const MIME_OK = /^[A-Za-z0-9.+-]{1,40}\/[A-Za-z0-9.+-]{1,80}$/;
+const APK_MIME = 'application/vnd.android.package-archive';
 // Tez tareeka (v2): 64 KB ke number wale tukde, 3 alag raaston (lanes) se ek saath; saamne tukde apni jagah jud kar ek file
 const CH2 = 64 * 1024, LANES = 3;
 const lanes = {};   // num -> [DataConnection raw]
@@ -1602,15 +1619,20 @@ const DOC_MIME = /^(application\/(msword|vnd\.openxmlformats-officedocument\.[a-
 const EXT_MIME = { pdf:'application/pdf', doc:'application/msword', docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   xls:'application/vnd.ms-excel', xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ppt:'application/vnd.ms-powerpoint',
   pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation', txt:'text/plain', csv:'text/csv', zip:'application/zip', rtf:'application/rtf',
-  odt:'application/vnd.oasis.opendocument.text', ods:'application/vnd.oasis.opendocument.spreadsheet', jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', mp4:'video/mp4' };
+  odt:'application/vnd.oasis.opendocument.text', ods:'application/vnd.oasis.opendocument.spreadsheet', jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', mp4:'video/mp4',
+  gif:'image/gif', webp:'image/webp', heic:'image/heic', '3gp':'video/3gpp', webm:'video/webm', mkv:'video/x-matroska', mov:'video/quicktime',
+  mp3:'audio/mpeg', m4a:'audio/mp4', aac:'audio/aac', wav:'audio/wav', ogg:'audio/ogg', opus:'audio/ogg', amr:'audio/amr', flac:'audio/flac',
+  apk:APK_MIME, rar:'application/vnd.rar', '7z':'application/x-7z-compressed', json:'application/json' };
 const outFiles = {};            // id -> { num, blob, meta }  (bhejne wali, sirf app chalu rehne tak)
 const inFiles = store.get('inF', {});   // id -> { num, name, mime, size, got }  (aa rahi file, resume ke liye)
 const sendingNow = {};          // num -> id (ek waqt me ek file)
 const sleep = ms => new Promise(r=>setTimeout(r, ms));
-function fileKind(mime){ return /^image\//.test(mime) ? 'image' : /^video\//.test(mime) ? 'video' : mime === 'application/pdf' ? 'pdf' : DOC_MIME.test(mime) ? 'doc' : 'other'; }
-function mimeOf(f){ const ext = String(f.name || '').split('.').pop().toLowerCase(); return (f.type && f.type !== 'application/octet-stream') ? f.type : (EXT_MIME[ext] || f.type || ''); }
+/** Har tarah ki file chalegi; 'other' sirf tab jab type hi galat ho */
+function fileKind(mime){ if (!MIME_OK.test(mime || '')) return 'other'; return /^image\//.test(mime) ? 'image' : /^video\//.test(mime) ? 'video' : mime === 'application/pdf' ? 'pdf' : DOC_MIME.test(mime) ? 'doc' : /^audio\//.test(mime) ? 'audio' : 'file'; }
+function mimeOf(f){ const ext = String(f.name || '').split('.').pop().toLowerCase(); const t = (f.type && f.type !== 'application/octet-stream') ? f.type : (EXT_MIME[ext] || f.type || ''); return MIME_OK.test(t) ? t : 'application/octet-stream'; }
 function fmtSize(b){ return b > 1048576 ? (b/1048576).toFixed(1)+' MB' : Math.max(1, Math.round(b/1024))+' KB'; }
-function fileLabel(m){ return /^image\//.test(m.mime) ? '📷 Photo' : /^video\//.test(m.mime) ? '🎬 Video' : (m.mime === 'application/pdf' ? '📄 ' : '📁 ') + m.name; }
+function fileIcon(mime){ return /^video\//.test(mime) ? '🎬' : /^image\//.test(mime) ? '🖼️' : mime === 'application/pdf' ? '📄' : /^audio\//.test(mime) ? '🎵' : mime === APK_MIME ? '📦' : '📁'; }
+function fileLabel(m){ return /^image\//.test(m.mime) ? '📷 Photo' : /^video\//.test(m.mime) ? '🎬 Video' : /^audio\//.test(m.mime) ? '🎵 ' + m.name : fileIcon(m.mime) + ' ' + m.name; }
 /** Photo ko Android se chhota karo (WebView canvas badi photo par kaali deta hai). Na ho to null */
 function nativeCompress(maxSide, maxBytes, square, thumbSide){
   if (!Native.compressPicked) return null;
@@ -1654,6 +1676,8 @@ function attachMenu(){
     { label:'📷 Photo (Gallery)', cls:'', fn:()=>attachFile('image/*') },
     { label:'🎬 Video (Gallery, 200 MB tak)', cls:'', fn:()=>attachFile('video/*') },
     { label:'📄 PDF', cls:'', fn:()=>attachFile('application/pdf') },
+    { label:'🎵 Audio / Gaana', cls:'', fn:()=>attachFile('audio/*') },
+    { label:'📦 Koi bhi file (APK, ZIP, RAR…)', cls:'', fn:()=>attachFile('*/*', true) },
     { label:'📁 Document (original photo, Word, Excel, PPT…)', cls:'', fn:()=>attachFile('image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rtf,.odt,.ods,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/csv,application/zip', true) },
     { label:'Band karein', cls:'ghost', fn:()=>{} } ]);
 }
@@ -1663,11 +1687,17 @@ async function attachFile(accept, asDoc){
   if (chatGroup) return attachGroupFile(chatGroup, accept, asDoc);
   const num = chatWith;
   const pr = await prepFile(accept, asDoc); if (!pr) return;
-  const { blob, name, thumb, outMime, kind } = pr;
-  const m = { id: uid() + uid(), from:'me', kind:'file', name, mime: outMime, size: blob.size, thumb, ts: Date.now(), ok:false, prog:0, doc: !!asDoc };
+  sendFileTo(num, { blob: pr.blob, name: pr.name, thumb: pr.thumb, mime: pr.outMime, doc: !!asDoc });
+}
+const sentBlobs = {};     // bheji hui file (is baar app chalu rehne tak) — forward ke liye
+/** Ek number ko file (chunne se ya forward se) */
+function sendFileTo(num, f, opts){
+  const m = { id: uid() + uid(), from:'me', kind:'file', name: f.name, mime: f.mime, size: f.blob.size, thumb: f.thumb || '', ts: Date.now(), ok:false, prog:0, doc: !!f.doc };
+  if (opts && opts.fwd) m.fwd = true;
   const msgs = getMsgs(num); msgs.push(m); saveMsgs(num, msgs);
-  outFiles[m.id] = { num, blob, meta: m };
-  if (isMedia(m)) { try { sentBlobUrls[m.id] = URL.createObjectURL(blob); } catch(e) {} }
+  outFiles[m.id] = { num, blob: f.blob, meta: m };
+  sentBlobs[m.id] = f.blob;
+  if (isMedia(m)) { try { sentBlobUrls[m.id] = URL.createObjectURL(f.blob); } catch(e) {} }
   touchContact(num, null, 'Aap: ' + fileLabel(m));
   if (current === 'chatScreen' && chatWith === num) renderMsgs();
   routeFile(num, m.id);
@@ -1678,7 +1708,7 @@ async function prepFile(accept, asDoc){
   if (!f) return null;
   const mime = mimeOf(f);
   const kind = fileKind(mime);
-  if (kind === 'other') { toast('Ye file nahi bhej sakte. Photo, video, PDF ya document chuniye.'); return null; }
+  if (kind === 'other') { toast('Ye file nahi khul rahi. Doosri file chuniye.'); return null; }
   let blob = f, name = f.name || 'file', thumb = '', outMime = mime;
   if (kind === 'image' && asDoc) toast('Photo original quality me ja rahi hai', 2000);
   if (kind === 'image' && !asDoc) {
@@ -1702,7 +1732,7 @@ function pumpFiles(num){
   if (!c || !c.open) { getConn(num); return; }
   const o = outFiles[id], m = o.meta;
   sendingNow[num] = id;
-  send(num, Object.assign({ t:'fstart', id, name:m.name, mime:m.mime, size:m.size, thumb:m.thumb, ts:m.ts, from:me.name, doc: !!m.doc, v:2, ch:CH2 }, o.gid ? { gid: o.gid, gmid: o.gmid } : {}));
+  send(num, Object.assign({ t:'fstart', id, name:m.name, mime:m.mime, size:m.size, thumb:m.thumb, ts:m.ts, from:me.name, doc: !!m.doc, fwd: m.fwd ? 1 : 0, v:2, ch:CH2 }, o.gid ? { gid: o.gid, gmid: o.gmid } : {}));
   clearTimeout(o.wait);
   o.wait = setTimeout(()=>{ if (sendingNow[num] === id && !o.streaming) { sendingNow[num] = null; pumpFiles(num); } }, 25000);   // jawab nahi: dobara poochho
 }
@@ -1890,7 +1920,7 @@ function onFileData(num, d){
         const list = gMsgs(g.id); let gm = list.find(x=>x.id === d.gmid);
         if (gm && gm.uri) { send(num, { t:'fdone', id:d.id }); return; }
         if (!gm) {
-          gm = { id:d.gmid, from:num, kind:'file', name, mime, size, thumb: safeThumb(d.thumb), ts: d.ts || Date.now(), prog:0, uri:'', doc: !!d.doc };
+          gm = { id:d.gmid, from:num, kind:'file', name, mime, size, thumb: safeThumb(d.thumb), ts: d.ts || Date.now(), prog:0, uri:'', doc: !!d.doc, fwd: !!d.fwd };
           list.push(gm); saveGMsgs(g.id, list);
           const viewing = current === 'chatScreen' && chatGroup === g.id && Native.isForeground();
           touchGroup(g.id, contactName(num) + ': ' + fileLabel(gm), !viewing);
@@ -1911,7 +1941,7 @@ function onFileData(num, d){
       if (m && m.kind !== 'file') { Object.assign(m, { kind:'file', name, mime, size, thumb: safeThumb(d.thumb), prog:0, uri:'', doc: !!d.doc }); delete m.text; saveMsgs(num, msgs); if (current === 'chatScreen' && chatWith === num) renderMsgs(); }
       if (m && m.uri) { send(num, { t:'fdone', id:d.id }); return; }   // pehle hi aa chuki
       if (!m) {
-        m = { id:d.id, from:'them', kind:'file', name, mime, size, thumb: safeThumb(d.thumb), ts: d.ts || Date.now(), prog:0, uri:'', doc: !!d.doc };
+        m = { id:d.id, from:'them', kind:'file', name, mime, size, thumb: safeThumb(d.thumb), ts: d.ts || Date.now(), prog:0, uri:'', doc: !!d.doc, fwd: !!d.fwd };
         msgs.push(m); saveMsgs(num, msgs);
         touchContact(num, d.from, fileLabel(m));
         if (current === 'chatScreen' && chatWith === num) renderMsgs();
@@ -2065,7 +2095,7 @@ async function sendViaPc(num, m, blob){
   const raw = crypto.getRandomValues(new Uint8Array(32)), pre = crypto.getRandomValues(new Uint8Array(8));
   const fk = await subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt']);
   const chunks = Math.ceil(blob.size / PCH);
-  const hdr = await sealHdr(theirPk, { id: m.id, k: b64u.enc(raw), p: b64u.enc(pre), name: m.name, mime: m.mime, size: blob.size, thumb: m.thumb || '', doc: !!m.doc, ts: m.ts });
+  const hdr = await sealHdr(theirPk, { id: m.id, k: b64u.enc(raw), p: b64u.enc(pre), name: m.name, mime: m.mime, size: blob.size, thumb: m.thumb || '', doc: !!m.doc, ts: m.ts, fwd: !!m.fwd });
   const r1 = await pcFetch('PUT', '/f/' + m.id + '/meta', JSON.stringify({ to: num, chunks, csize: PCH + 16, size: blob.size + chunks * 16, hdr }));
   if (!r1.ok) return false;
   let next = 0, sent = 0, fail = false;
@@ -2120,7 +2150,7 @@ async function textToPc(num, id){
     const theirPk = await getPk(num); if (!theirPk) return;
     const pre = crypto.getRandomValues(new Uint8Array(8)), raw = crypto.getRandomValues(new Uint8Array(32));
     const fk = await subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt']);
-    const hdr = await sealHdr(theirPk, { id, t:'text', text: m0.text, ts: m0.ts, name: me.name });
+    const hdr = await sealHdr(theirPk, { id, t:'text', text: m0.text, ts: m0.ts, name: me.name, fwd: !!m0.fwd });
     const r1 = await pcFetch('PUT', '/f/' + id + '/meta', JSON.stringify({ to: num, chunks: 1, csize: 64, size: 17, hdr }));
     if (!r1.ok) return;
     const ct = new Uint8Array(await subtle.encrypt({ name:'AES-GCM', iv: ivOf(pre, 0) }, fk, new Uint8Array([0])));
@@ -2153,7 +2183,7 @@ async function gotPcItem(it){
   if (!h || h.id !== it.id) return;
   if (h.t === 'text') {                                   // offline me aaya text
     const text = String(h.text || '').slice(0, 4000); if (!text) return;
-    msgs.push({ id: it.id, from:'them', text, ts: +h.ts || Date.now() }); saveMsgs(num, msgs);
+    msgs.push(Object.assign({ id: it.id, from:'them', text, ts: +h.ts || Date.now() }, h.fwd ? { fwd:true } : {})); saveMsgs(num, msgs);
     pcFetch('DELETE', '/f/' + it.id).catch(()=>{});      // mil gaya: PC se mitao (bhejne wale ko ✓✓)
     send(num, { t:'ack', id: it.id });
     const ct = touchContact(num, h.name, text);
@@ -2166,7 +2196,7 @@ async function gotPcItem(it){
   const mime = String(h.mime || ''), kind = fileKind(mime), size = +h.size || 0;
   if (kind === 'other' || size <= 0 || size > (LIMIT[kind] || 0) + 1024) return;
   const m = ex || { id: it.id };
-  Object.assign(m, { from:'them', kind:'file', name: String(h.name || 'file').slice(0, 80), mime, size, thumb: safeThumb(h.thumb), ts: +h.ts || Date.now(), prog:0, uri:'', doc: !!h.doc, pc: { k: h.k, p: h.p } });
+  Object.assign(m, { from:'them', kind:'file', name: String(h.name || 'file').slice(0, 80), mime, size, thumb: safeThumb(h.thumb), ts: +h.ts || Date.now(), prog:0, uri:'', doc: !!h.doc, fwd: !!h.fwd, pc: { k: h.k, p: h.p } });
   delete m.text;
   if (!ex) msgs.push(m);
   saveMsgs(num, msgs);
@@ -2251,7 +2281,7 @@ setInterval(()=>{
 
 // ================= App ke andar photo/video dekhna =================
 const sentBlobUrls = {};   // bheji hui photo/video (is baar app chalu rehne tak)
-function isMedia(m){ return !!(m && m.kind === 'file' && !m.deleted && /^(image|video)\//.test(m.mime || '')); }
+function isMedia(m){ return !!(m && m.kind === 'file' && !m.deleted && /^(image|video|audio)\//.test(m.mime || '')); }
 function mediaSrc(m){
   if (m.uri && Native.mediaUrl) { try { const u = Native.mediaUrl(m.uri, m.mime); if (u) return u; } catch(e) {} }
   if ((m.from === 'me' || (me && m.from === me.num)) && sentBlobUrls[m.id]) return sentBlobUrls[m.id];
@@ -2268,12 +2298,12 @@ function openViewer(num, id, src){
   return true;
 }
 function closeViewer(){
-  const v = $('mvBody').querySelector && $('mvBody').querySelector('video'); if (v) { try { v.pause(); } catch(e) {} }
+  const v = $('mvBody').querySelector && $('mvBody').querySelector('video, audio'); if (v) { try { v.pause(); } catch(e) {} }
   $('mvBody').innerHTML = ''; $('mv').classList.remove('on'); mv.list = [];
 }
 function viewerStep(d){
   const j = mv.i + d; if (j < 0 || j >= mv.list.length) return;
-  const v = $('mvBody').querySelector && $('mvBody').querySelector('video'); if (v) { try { v.pause(); } catch(e) {} }
+  const v = $('mvBody').querySelector && $('mvBody').querySelector('video, audio'); if (v) { try { v.pause(); } catch(e) {} }
   mv.i = j; renderViewer();
 }
 function renderViewer(){
@@ -2282,6 +2312,7 @@ function renderViewer(){
   const src = mediaSrc(m), img = /^image\//.test(m.mime);
   let html;
   if (img) html = '<img id="mvImg" draggable="false" src="' + esc(src || safeThumb(m.thumb)) + '">' + (src ? '' : '<div class="mvnote">Ye chhoti photo hai — asli photo bhejte waqt wale phone me hai</div>');
+  else if (src && /^audio\//.test(m.mime)) html = '<div class="mvaudio">🎵 ' + esc(m.name) + '</div><audio id="mvVid" src="' + esc(src) + '" controls autoplay></audio>';
   else if (src) html = '<video id="mvVid" src="' + esc(src) + '" controls autoplay playsinline></video>';
   else html = '<div class="mvnote">Video yahan nahi chal sakti</div>';
   $('mvBody').innerHTML = html;
@@ -2339,11 +2370,12 @@ function fileBubble(m, g){
   else if (!done) state = (mine && m.via === 'pc' ? '📦 Server tak ' : '') + '<span class="fpct">' + (m.prog ? m.prog + '% · ' : (mine ? '🕓 ' : '⬇️ ')) + '</span>';
   const busy = !done && !m.fail && !lost && !waitDl, th = img ? safeThumb(m.thumb) : '';
   const body = th ? '<div class="fwrap"><img class="fthumb" src="' + esc(th) + '">' + (busy ? '<div class="fov"><span class="fpct">' + (m.prog ? m.prog + '% · ' : '…') + '</span></div>' : waitDl ? '<div class="fov">⬇️</div>' : '') + '</div>'
-    : '<div class="fcard">' + (/^video\//.test(m.mime) ? '🎬' : /^image\//.test(m.mime) ? '🖼️' : m.mime === 'application/pdf' ? '📄' : '📁') + ' <b>' + esc(m.name) + '</b><br><small>' + fmtSize(m.size) + (m.doc && /^image\//.test(m.mime) ? ' · original' : '') + (done && !mine ? (/^(image|video)\//.test(m.mime) ? ' · ▶ dabakar dekhein' : ' · dabakar kholein') : '') + '</small></div>';
+    : '<div class="fcard">' + fileIcon(m.mime) + ' <b>' + esc(m.name) + '</b><br><small>' + fmtSize(m.size) + (m.doc && /^image\//.test(m.mime) ? ' · original' : '') + (done && !mine ? (/^(image|video)\//.test(m.mime) ? ' · ▶ dabakar dekhein' : /^audio\//.test(m.mime) ? ' · ▶ dabakar sunein' : ' · dabakar kholein') : '') + '</small>'
+      + (m.mime === APK_MIME && !mine ? '<div class="apkwarn">⚠️ App file — sirf bharose wale se aayi ho tabhi kholein</div>' : '') + '</div>';
   const bar = (!done && !m.fail && !lost && !waitDl) ? '<div class="fbar"><i style="width:' + (m.prog || 0) + '%"></i></div>' : '';
   const who = g && !mine ? '<div class="gname">' + esc(contactName(m.from)) + '</div>' : '';
   const tk = !mine ? '' : g ? (m.pcSent || m.p2p ? ' ' + gTick(g, m) : '') : (m.ok || m.pcSent) ? ' ' + tick(m) : '';
-  return '<div class="msg file ' + (mine ? 'me' : 'them') + '" data-fid="' + esc(m.id) + '" data-mid="' + esc(m.id) + '">' + who + body + bar
+  return '<div class="msg file ' + (mine ? 'me' : 'them') + '" data-fid="' + esc(m.id) + '" data-mid="' + esc(m.id) + '">' + who + (m.fwd ? '<div class="fwdtag" style="padding:0 6px">↪️ Forwarded</div>' : '') + body + bar
     + '<div class="t">' + state + fmtTime(m.ts) + tk + '</div></div>';
 }
 
@@ -2373,6 +2405,7 @@ function msgMenu(id){
   const m = getMsgs(num).find(x=>x.id === id); if (!m || m.from === 'sys') return;
   const btns = [];
   if (!m.deleted && m.text && m.kind !== 'file') btns.push({ label:'📋 Copy', cls:'ghost', fn:()=>{ try { navigator.clipboard.writeText(m.text); toast('Copy ho gaya'); } catch(e) { toast('Copy nahi hua'); } } });
+  if (canForward(m) || (m.kind === 'file' && !m.deleted)) btns.push({ label:'↪️ Forward', cls:'ghost', fn:()=>openForward(m) });
   btns.push({ label:'🗑️ Mere liye hatao', cls:'ghost', fn:()=>deleteForMe(num, id) });
   if (m.from === 'me' && !m.deleted && Date.now() - m.ts < DEL_ALL_MS) btns.push({ label:'🚫 Sabke liye hatao', cls:'red', fn:()=>deleteForAll(num, id) });
   btns.push({ label:'Band karein', cls:'ghost', fn:()=>{} });
@@ -2459,8 +2492,8 @@ function sendGroupStuff(num){
     const list = gMsgs(g.id);
     list.filter(m=>m.from === me.num && !m.deleted && !(m.ok || {})[num] && (m.kind !== 'file' || (m.pcSent && m.gk))).slice(-100)
         .forEach(m=>send(num, m.kind === 'file'
-          ? { t:'gmsg', gid: g.id, id: m.id, ts: m.ts, name: me.name, f: { name: m.name, mime: m.mime, size: m.size, thumb: m.thumb || '', doc: !!m.doc, k: m.gk, p: m.gp } }
-          : { t:'gmsg', gid: g.id, id: m.id, text: m.text, ts: m.ts, name: me.name }));
+          ? { t:'gmsg', gid: g.id, id: m.id, ts: m.ts, name: me.name, fwd: m.fwd ? 1 : 0, f: { name: m.name, mime: m.mime, size: m.size, thumb: m.thumb || '', doc: !!m.doc, k: m.gk, p: m.gp } }
+          : { t:'gmsg', gid: g.id, id: m.id, text: m.text, ts: m.ts, name: me.name, fwd: m.fwd ? 1 : 0 }));
     list.filter(m=>m.from === me.num && m.deleted && (m.delPend || []).includes(num)).forEach(m=>send(num, { t:'gdel', gid: g.id, id: m.id }));
     const seenIds = list.filter(m=>m.from === num && m.seenAt && !m.seenSent).map(m=>m.id);
     if (seenIds.length && send(num, { t:'gseen', gid: g.id, ids: seenIds })) { list.forEach(m=>{ if (seenIds.includes(m.id)) m.seenSent = true; }); saveGMsgs(g.id, list); }
@@ -2469,9 +2502,10 @@ function sendGroupStuff(num){
 }
 function pushGroup(g){ others(g).forEach(n=>{ if (!sendGroupStuff(n)) getConn(n); }); }
 
-function sendGroupMsg(text, gid){
+function sendGroupMsg(text, gid, opts){
   const g = groups[gid || chatGroup]; if (!g || g.left || g.removed) return toast('Aap is group me nahi hain');
   const m = { id: uid() + uid(), from: me.num, text: text.slice(0, 4000), ts: Date.now(), ok: {}, seen: {} };
+  if (opts && opts.fwd) m.fwd = true;
   const list = gMsgs(g.id); list.push(m); saveGMsgs(g.id, list);
   touchGroup(g.id, 'Aap: ' + text);
   if (current === 'chatScreen' && chatGroup === g.id) renderMsgs();
@@ -2518,7 +2552,7 @@ function onGroupData(num, d){
       if (!list.find(m=>m.id === d.id) && d.f) {         // group me file aayi (chaabi P2P, file server par)
         const f = d.f, mime = String(f.mime || ''), kind = fileKind(mime), size = +f.size || 0;
         if (kind !== 'other' && size > 0 && size <= (LIMIT[kind] || 0) + 1024 && /^[A-Za-z0-9_-]{43}$/.test(f.k || '') && /^[A-Za-z0-9_-]{11}$/.test(f.p || '')) {
-          const fm = { id:d.id, from:num, kind:'file', name: String(f.name || 'file').slice(0, 80), mime, size, thumb: safeThumb(f.thumb), doc: !!f.doc, ts: d.ts || Date.now(), prog:0, uri:'', pc:{ k:f.k, p:f.p } };
+          const fm = { id:d.id, from:num, kind:'file', name: String(f.name || 'file').slice(0, 80), mime, size, thumb: safeThumb(f.thumb), doc: !!f.doc, fwd: !!d.fwd, ts: d.ts || Date.now(), prog:0, uri:'', pc:{ k:f.k, p:f.p } };
           list.push(fm); saveGMsgs(g.id, list);
           const viewing = current === 'chatScreen' && chatGroup === g.id && Native.isForeground();
           touchGroup(g.id, contactName(num) + ': ' + fileLabel(fm), !viewing);
@@ -2527,7 +2561,7 @@ function onGroupData(num, d){
         }
       } else if (!list.find(m=>m.id === d.id)) {
         const text = String(d.text || '').slice(0, 4000);
-        list.push({ id:d.id, from:num, text, ts: d.ts || Date.now() }); saveGMsgs(g.id, list);
+        list.push(Object.assign({ id:d.id, from:num, text, ts: d.ts || Date.now() }, d.fwd ? { fwd:true } : {})); saveGMsgs(g.id, list);
         const viewing = current === 'chatScreen' && chatGroup === g.id && Native.isForeground();
         touchGroup(g.id, contactName(num) + ': ' + text, !viewing);
         if (!viewing) Native.notifyMessage(num, g.name, contactName(num) + ': ' + text.slice(0, 200));
@@ -2607,10 +2641,18 @@ async function attachGroupFile(gid, accept, asDoc){
   const g = groups[gid]; if (!g || g.left || g.removed) return toast('Aap is group me nahi hain');
   if (!others(g).length) return toast('Group me koi aur member nahi hai');
   const pr = await prepFile(accept, asDoc); if (!pr) return;
-  const { blob, name, thumb, outMime } = pr;
-  const m = { id: uid() + uid(), from: me.num, kind:'file', name, mime: outMime, size: blob.size, thumb, ts: Date.now(), ok:{}, seen:{}, via:'pc', prog:0, doc: !!asDoc };
+  sendGroupFileTo(gid, { blob: pr.blob, name: pr.name, thumb: pr.thumb, mime: pr.outMime, doc: !!asDoc });
+}
+/** Group ko file: pehle server, warna seedhe har member ko */
+async function sendGroupFileTo(gid, f, opts){
+  const g = groups[gid]; if (!g || g.left || g.removed) return toast('Aap is group me nahi hain');
+  if (!others(g).length) return toast('Group me koi aur member nahi hai');
+  const blob = f.blob;
+  const m = { id: uid() + uid(), from: me.num, kind:'file', name: f.name, mime: f.mime, size: blob.size, thumb: f.thumb || '', ts: Date.now(), ok:{}, seen:{}, via:'pc', prog:0, doc: !!f.doc };
+  if (opts && opts.fwd) m.fwd = true;
   const list = gMsgs(gid); list.push(m); saveGMsgs(gid, list);
   gOut[m.id] = { gid, blob };
+  sentBlobs[m.id] = blob;
   if (isMedia(m)) { try { sentBlobUrls[m.id] = URL.createObjectURL(blob); } catch(e) {} }
   touchGroup(gid, 'Aap: ' + fileLabel(m));
   if (current === 'chatScreen' && chatGroup === gid) renderMsgs();
@@ -2690,6 +2732,61 @@ async function downloadGroupFile(gid, id){
   else { updGFile(gid, id, { prog: 0 }); toast('Download ruk gaya — dobara dabaiye', 3000); }
 }
 
+// ================= Forward =================
+let fwdItem = null, fwdSel = new Set();
+const FWD_MAX = 5;
+/** File ke bytes: bheji hui (yaad hai) ya phone me save hui */
+async function fileBlobOf(m){
+  if (sentBlobs[m.id]) return sentBlobs[m.id];
+  if (m.uri && Native.mediaUrl) {
+    try { const u = Native.mediaUrl(m.uri, m.mime); if (u) { const r = await fetch(u); if (r.ok) return await r.blob(); } } catch(e) {}
+  }
+  return null;
+}
+function canForward(m){
+  if (!m || m.deleted || m.from === 'sys') return false;
+  if (m.kind !== 'file') return !!m.text;
+  return !!(sentBlobs[m.id] || m.uri);
+}
+function openForward(m){
+  if (!canForward(m)) return toast(m && m.kind === 'file' ? (m.pc ? 'Pehle file download karein, phir forward' : 'Ye file ab phone me nahi hai, forward nahi ho sakti') : 'Ye forward nahi ho sakta', 3000);
+  fwdItem = m; fwdSel = new Set();
+  const gs = Object.values(groups).filter(g=>g && !g.left && !g.removed).sort((a,b)=>(b.ts||0)-(a.ts||0));
+  const people = Object.keys(contacts).filter(n=>n !== (me && me.num) && onAppNum(n)).sort((a,b)=>(contacts[b].ts||0)-(contacts[a].ts||0));
+  $('fwdList').innerHTML = (gs.length || people.length) ? gs.map(g=>'<div class="item" data-key="g:' + esc(g.id) + '"><div class="avatar grp">👥</div><div class="meta"><div class="name">' + esc(g.name) + '</div><div class="last">Group</div></div><span class="chk">✓</span></div>').join('')
+    + people.map(n=>'<div class="item" data-key="' + n + '">' + avHtml(n, contactName(n)) + '<div class="meta"><div class="name">' + esc(contactName(n)) + '</div><div class="last">' + n + '</div></div><span class="chk">✓</span></div>').join('')
+    : '<div class="empty">Koi chat nahi mili</div>';
+  (($('fwdList').querySelectorAll && $('fwdList').querySelectorAll('.item')) || []).forEach(it=>it.onclick=()=>{
+    const k = it.dataset.key;
+    if (fwdSel.has(k)) fwdSel.delete(k); else { if (fwdSel.size >= FWD_MAX) return toast('Ek baar me ' + FWD_MAX + ' jagah tak'); fwdSel.add(k); }
+    it.classList.toggle('sel', fwdSel.has(k));
+    $('fwdGo').textContent = fwdSel.size ? '↪️ Bhejo (' + fwdSel.size + ')' : '↪️ Bhejo';
+  });
+  $('fwdWhat').textContent = m.kind === 'file' ? fileLabel(m) : String(m.text).slice(0, 80);
+  $('fwdGo').textContent = '↪️ Bhejo';
+  $('fwd').classList.add('on');
+}
+function closeForward(){ $('fwd').classList.remove('on'); fwdItem = null; fwdSel = new Set(); }
+async function doForward(){
+  const m = fwdItem, keys = [...fwdSel];
+  if (!m) return;
+  if (!keys.length) return toast('Kisko bhejna hai, chuniye');
+  closeForward();
+  let f = null;
+  if (m.kind === 'file') {
+    toast('Forward ho raha hai…', 2000);
+    const blob = await fileBlobOf(m);
+    if (!blob) return toast('Ye file phone me nahi mili, forward nahi hui', 3000);
+    f = { blob, name: m.name, mime: m.mime, thumb: m.thumb || '', doc: !!m.doc };
+  }
+  for (const k of keys) {
+    if (k.startsWith('g:')) { const gid = k.slice(2); if (f) sendGroupFileTo(gid, f, { fwd:true }); else sendGroupMsg(m.text, gid, { fwd:true }); }
+    else if (/^\d{10}$/.test(k)) { if (f) sendFileTo(k, f, { fwd:true }); else sendTextTo(k, m.text, { fwd:true }); }
+  }
+  toast('↪️ ' + keys.length + ' jagah forward ho gaya');
+  if (keys.length === 1) { const k = keys[0]; if (k.startsWith('g:')) openGroup(k.slice(2)); else openChat(k); }
+}
+
 function markGroupSeen(gid){
   if (!Native.isForeground() || current !== 'chatScreen' || chatGroup !== gid) return;
   const list = gMsgs(gid); const senders = new Set();
@@ -2728,7 +2825,7 @@ function renderGroupMsgs(){
     const mine = m.from === me.num;
     if (m.deleted) return '<div class="msg del ' + (mine ? 'me' : 'them') + '" data-mid="' + esc(m.id) + '">🚫 ' + (mine ? 'Aapne ye message hata diya' : 'Ye message hata diya gaya') + '<div class="t">' + fmtTime(m.ts) + '</div></div>';
     if (m.kind === 'file') return fileBubble(m, g);
-    return '<div class="msg ' + (mine ? 'me' : 'them') + '" data-mid="' + esc(m.id) + '">' + (mine ? '' : '<div class="gname">' + esc(contactName(m.from)) + '</div>') + esc(m.text)
+    return '<div class="msg ' + (mine ? 'me' : 'them') + '" data-mid="' + esc(m.id) + '">' + (mine ? '' : '<div class="gname">' + esc(contactName(m.from)) + '</div>') + (m.fwd ? '<div class="fwdtag">↪️ Forwarded</div>' : '') + esc(m.text)
       + '<div class="t">' + fmtTime(m.ts) + (mine ? ' ' + gTick(g, m) : '') + '</div></div>';
   }).join('') : '<div class="sys">Group me pehla message bhejein 👋</div>';
   el.scrollTop = el.scrollHeight;
@@ -2746,6 +2843,7 @@ function groupMenu(id){
   const g = groups[chatGroup]; const m = gMsgs(chatGroup).find(x=>x.id === id); if (!g || !m || m.from === 'sys') return;
   const btns = [];
   if (!m.deleted && m.text) btns.push({ label:'📋 Copy', cls:'ghost', fn:()=>{ try { navigator.clipboard.writeText(m.text); toast('Copy ho gaya'); } catch(e) {} } });
+  if (canForward(m) || (m.kind === 'file' && !m.deleted)) btns.push({ label:'↪️ Forward', cls:'ghost', fn:()=>openForward(m) });
   btns.push({ label:'🗑️ Mere liye hatao', cls:'ghost', fn:()=>{
     if (m.kind === 'file' && m.from !== me.num && m.pc) pcFetch('DELETE', '/gf/' + id).catch(()=>{});   // nahi chahiye: server ko batao
     if (gOut[id]) delete gOut[id];
@@ -3185,6 +3283,8 @@ $('chatVoice').onclick = ()=> startCall(chatWith, false);
 $('chatVideo').onclick = ()=> startCall(chatWith, true);
 $('sendBtn').onclick = sendMsg;
 $('mvClose').onclick = closeViewer;
+$('fwdClose').onclick = closeForward;
+$('fwdGo').onclick = doForward;
 $('mvPrev').onclick = ()=>viewerStep(-1);
 $('mvNext').onclick = ()=>viewerStep(1);
 $('mvExt').onclick = ()=>{ const m = mv.list[mv.i]; if (m && m.uri && Native.fileOpen) Native.fileOpen(m.uri, m.mime); };
@@ -3259,6 +3359,7 @@ window.nativeAction = function(act, arg){
 // Back button (Android) — true return karne par app background me nahi jayega
 window.onAndroidBack = function(){
   if ($('mv').classList.contains('on')) { closeViewer(); return true; }
+  if ($('fwd').classList.contains('on')) { closeForward(); return true; }
   if ($('modal').classList.contains('on')) { $('modal').classList.remove('on'); return true; }
   if (current === 'callScreen') return true;
   if (current === 'chatScreen' || current === 'settingsScreen') { chatWith=null; chatGroup=null; show('homeScreen'); renderRecent(); return true; }
