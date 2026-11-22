@@ -53,6 +53,18 @@
   .fthumb{display:block;max-width:210px;max-height:260px;border-radius:10px}
   .fcard{padding:8px 10px;min-width:170px;font-size:14px}
   .msg .dl{color:#25d366}
+  #mv{position:fixed;inset:0;background:#000;z-index:60;display:none;flex-direction:column}
+  #mv.on{display:flex}
+  .mvtop{display:flex;align-items:center;gap:6px;padding:8px;color:#fff;background:linear-gradient(#000d,#0000);position:absolute;top:0;left:0;right:0;z-index:3}
+  .mvtop button{background:none;border:0;color:#fff;font-size:22px;padding:6px 12px}
+  .mvname{flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #mvBody{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
+  #mvBody img{max-width:100%;max-height:100%;touch-action:none;user-select:none;-webkit-user-select:none;transition:transform .05s}
+  #mvBody video{width:100%;max-height:100%;background:#000}
+  .mvnote{color:#bbb;font-size:13px;padding:12px 20px;text-align:center}
+  .mvarrow{position:absolute;top:50%;transform:translateY(-50%);background:#0006;color:#fff;border:0;font-size:30px;width:40px;height:56px;border-radius:8px;left:4px;z-index:2}
+  .mvarrow.r{left:auto;right:4px}
+  .mvcount{position:absolute;bottom:12px;left:0;right:0;text-align:center;color:#aaa;font-size:12px;pointer-events:none}
   .fcard small{color:var(--muted)}
   .msg.file .t{padding:0 6px 2px}
   .fbar{height:4px;background:#0001;border-radius:2px;margin:4px 6px 0;overflow:hidden}
@@ -445,6 +457,10 @@
 </div></div>
 
 <div class="toast" id="toast"></div>
+<div id="mv"><div class="mvtop"><button id="mvClose">✕</button><div class="mvname" id="mvName"></div><button id="mvExt" title="Phone ke app me kholein">↗</button></div>
+  <div id="mvBody"></div>
+  <button class="mvarrow" id="mvPrev">‹</button><button class="mvarrow r" id="mvNext">›</button>
+  <div class="mvcount" id="mvCount"></div></div>
 
 <!-- PeerJS APK ke andar se (build ke waqt PC ne download kiya); na mile tabhi internet se -->
 <script src="peerjs.min.js"></script>
@@ -983,6 +999,7 @@ function renderMsgs(){
     if (el._longPressed && Date.now() - el._longPressed < 800) return;
     const b = e.target && e.target.closest ? e.target.closest('[data-fid]') : null; if (!b) return;
     const m = getMsgs(chatWith).find(x=>x.id === b.dataset.fid); if (!m) return;
+    if (viewable(m) && (m.uri || m.from === 'me') && openViewer(chatWith, m.id)) return;   // app ke andar
     if (m.uri && Native.fileOpen) Native.fileOpen(m.uri, m.mime);
     else if (m.from === 'them' && m.pc) downloadPc(chatWith, m.id);
     else if (m.from === 'me' && !m.ok && !outFiles[m.id]) attachMenu();
@@ -1331,6 +1348,7 @@ async function attachFile(accept, asDoc){
   const m = { id: uid() + uid(), from:'me', kind:'file', name, mime: outMime, size: blob.size, thumb, ts: Date.now(), ok:false, prog:0, doc: !!asDoc };
   const msgs = getMsgs(num); msgs.push(m); saveMsgs(num, msgs);
   outFiles[m.id] = { num, blob, meta: m };
+  if (isMedia(m)) { try { sentBlobUrls[m.id] = URL.createObjectURL(blob); } catch(e) {} }
   touchContact(num, null, 'Aap: ' + fileLabel(m));
   if (current === 'chatScreen' && chatWith === num) renderMsgs();
   routeFile(num, m.id);
@@ -1803,6 +1821,83 @@ async function checkPcSent(){
 }
 setInterval(()=>{ if (me && !mustUpd) { checkPcInbox(); checkPcSent(); } }, 60000);
 
+// ================= App ke andar photo/video dekhna =================
+const sentBlobUrls = {};   // bheji hui photo/video (is baar app chalu rehne tak)
+function isMedia(m){ return !!(m && m.kind === 'file' && !m.deleted && /^(image|video)\//.test(m.mime || '')); }
+function mediaSrc(m){
+  if (m.uri && Native.mediaUrl) { try { const u = Native.mediaUrl(m.uri, m.mime); if (u) return u; } catch(e) {} }
+  if (m.from === 'me' && sentBlobUrls[m.id]) return sentBlobUrls[m.id];
+  return '';
+}
+const mv = { num:null, list:[], i:0, z:{ s:1, x:0, y:0 } };
+function viewable(m){ return isMedia(m) && (mediaSrc(m) || (/^image\//.test(m.mime) && m.thumb)); }
+function openViewer(num, id){
+  const list = getMsgs(num).filter(viewable);
+  const i = list.findIndex(x=>x.id === id); if (i < 0) return false;
+  Object.assign(mv, { num, list, i });
+  $('mv').classList.add('on');
+  renderViewer();
+  return true;
+}
+function closeViewer(){
+  const v = $('mvBody').querySelector && $('mvBody').querySelector('video'); if (v) { try { v.pause(); } catch(e) {} }
+  $('mvBody').innerHTML = ''; $('mv').classList.remove('on'); mv.list = [];
+}
+function viewerStep(d){
+  const j = mv.i + d; if (j < 0 || j >= mv.list.length) return;
+  const v = $('mvBody').querySelector && $('mvBody').querySelector('video'); if (v) { try { v.pause(); } catch(e) {} }
+  mv.i = j; renderViewer();
+}
+function renderViewer(){
+  const m = mv.list[mv.i]; if (!m) return closeViewer();
+  mv.z = { s:1, x:0, y:0 };
+  const src = mediaSrc(m), img = /^image\//.test(m.mime);
+  let html;
+  if (img) html = '<img id="mvImg" draggable="false" src="' + esc(src || safeThumb(m.thumb)) + '">' + (src ? '' : '<div class="mvnote">Ye chhoti photo hai — asli photo bhejte waqt wale phone me hai</div>');
+  else if (src) html = '<video id="mvVid" src="' + esc(src) + '" controls autoplay playsinline></video>';
+  else html = '<div class="mvnote">Video yahan nahi chal sakti</div>';
+  $('mvBody').innerHTML = html;
+  $('mvName').textContent = (m.from === 'me' ? 'Aap' : contactName(mv.num)) + ' · ' + fmtTime(m.ts);
+  $('mvExt').style.display = m.uri ? '' : 'none';
+  $('mvPrev').style.visibility = mv.i > 0 ? 'visible' : 'hidden';
+  $('mvNext').style.visibility = mv.i < mv.list.length - 1 ? 'visible' : 'hidden';
+  $('mvCount').textContent = mv.list.length > 1 ? (mv.i + 1) + ' / ' + mv.list.length : '';
+  const im = $('mvBody').querySelector ? $('mvBody').querySelector('#mvImg') : null;
+  if (im) zoomable(im);
+  const vd = $('mvBody').querySelector ? $('mvBody').querySelector('#mvVid') : null;
+  if (vd) vd.onerror = ()=>{ $('mvBody').innerHTML = '<div class="mvnote">Ye video yahan nahi chal rahi — upar ↗ dabakar phone ke player me kholein</div>'; };
+}
+/** Do ungli se zoom, khinch kar dekho, do baar tap = zoom; zoom na ho to left/right swipe = agli/pichli */
+function zoomable(im){
+  const pts = new Map(); let start = null, swipeX = null, lastTap = 0;
+  const apply = ()=>{ im.style.transform = 'translate(' + mv.z.x + 'px,' + mv.z.y + 'px) scale(' + mv.z.s + ')'; };
+  const dist = ()=>{ const a = Array.from(pts.values()); return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); };
+  im.onpointerdown = e=>{
+    try { im.setPointerCapture(e.pointerId); } catch(x) {}
+    pts.set(e.pointerId, { x:e.clientX, y:e.clientY });
+    if (pts.size === 2) { start = { d: dist(), s: mv.z.s }; swipeX = null; }
+    else if (pts.size === 1) {
+      swipeX = mv.z.s === 1 ? e.clientX : null;
+      start = { px: e.clientX, py: e.clientY, x: mv.z.x, y: mv.z.y };
+      const now = Date.now();
+      if (now - lastTap < 300) { mv.z = mv.z.s > 1 ? { s:1, x:0, y:0 } : { s:2.5, x:0, y:0 }; apply(); swipeX = null; }
+      lastTap = now;
+    }
+  };
+  im.onpointermove = e=>{
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x:e.clientX, y:e.clientY });
+    if (pts.size === 2 && start && start.d) { mv.z.s = Math.max(1, Math.min(5, start.s * dist() / start.d)); if (mv.z.s === 1) { mv.z.x = mv.z.y = 0; } apply(); }
+    else if (pts.size === 1 && mv.z.s > 1 && start && start.px != null) { mv.z.x = start.x + e.clientX - start.px; mv.z.y = start.y + e.clientY - start.py; apply(); }
+  };
+  im.onpointerup = im.onpointercancel = e=>{
+    pts.delete(e.pointerId);
+    if (pts.size === 0 && swipeX != null && mv.z.s === 1) { const dx = e.clientX - swipeX; if (Math.abs(dx) > 60) viewerStep(dx < 0 ? 1 : -1); }
+    if (pts.size === 0) { swipeX = null; start = null; }
+    else if (pts.size === 1) { const p = Array.from(pts.values())[0]; start = { px:p.x, py:p.y, x:mv.z.x, y:mv.z.y }; }
+  };
+}
+
 function fileBubble(m){
   const mine = m.from === 'me', img = /^image\//.test(m.mime) && !m.doc;
   const done = mine ? (m.ok || m.pcSent) : !!m.uri;
@@ -1814,7 +1909,7 @@ function fileBubble(m){
   else if (mine && m.pcSent && !m.ok) state = '📦 PC par rakhi (saamne wala le sakta hai) · ';
   else if (!done) state = (mine && m.via === 'pc' ? '📦 PC tak ' : '') + '<span class="fpct">' + (m.prog ? m.prog + '% · ' : (mine ? '🕓 ' : '⬇️ ')) + '</span>';
   const body = img && m.thumb ? '<img class="fthumb" src="' + esc(safeThumb(m.thumb)) + '">'
-    : '<div class="fcard">' + (/^video\//.test(m.mime) ? '🎬' : /^image\//.test(m.mime) ? '🖼️' : m.mime === 'application/pdf' ? '📄' : '📁') + ' <b>' + esc(m.name) + '</b><br><small>' + fmtSize(m.size) + (m.doc && /^image\//.test(m.mime) ? ' · original' : '') + (done && !mine ? ' · dabakar kholein' : '') + '</small></div>';
+    : '<div class="fcard">' + (/^video\//.test(m.mime) ? '🎬' : /^image\//.test(m.mime) ? '🖼️' : m.mime === 'application/pdf' ? '📄' : '📁') + ' <b>' + esc(m.name) + '</b><br><small>' + fmtSize(m.size) + (m.doc && /^image\//.test(m.mime) ? ' · original' : '') + (done && !mine ? (/^(image|video)\//.test(m.mime) ? ' · ▶ dabakar dekhein' : ' · dabakar kholein') : '') + '</small></div>';
   const bar = (!done && !m.fail && !lost && !waitDl) ? '<div class="fbar"><i style="width:' + (m.prog || 0) + '%"></i></div>' : '';
   return '<div class="msg file ' + (mine ? 'me' : 'them') + '" data-fid="' + esc(m.id) + '" data-mid="' + esc(m.id) + '">' + body + bar
     + '<div class="t">' + state + fmtTime(m.ts) + (mine && m.ok ? ' ' + tick(m) : mine && m.pcSent ? ' <span class="tk">✓</span>' : '') + '</div></div>';
@@ -2504,6 +2599,10 @@ $('giRenameBtn').onclick = ()=>{ const g = groups[chatGroup], n = $('giRename').
 $('chatVoice').onclick = ()=> startCall(chatWith, false);
 $('chatVideo').onclick = ()=> startCall(chatWith, true);
 $('sendBtn').onclick = sendMsg;
+$('mvClose').onclick = closeViewer;
+$('mvPrev').onclick = ()=>viewerStep(-1);
+$('mvNext').onclick = ()=>viewerStep(1);
+$('mvExt').onclick = ()=>{ const m = mv.list[mv.i]; if (m && m.uri && Native.fileOpen) Native.fileOpen(m.uri, m.mime); };
 $('attachBtn').onclick = attachMenu;
 $('dpSetBtn').onclick = setMyDp;
 $('webLinkBtn').onclick = ()=>{ const err = linkWeb($('webCode').value); $('webMsg').style.color = err ? 'var(--red)' : ''; $('webMsg').textContent = err || 'Jod rahe hain… PC par chat dikhne lagegi.'; if (!err) $('webCode').value = ''; };
@@ -2569,6 +2668,7 @@ window.nativeAction = function(act, arg){
 
 // Back button (Android) — true return karne par app background me nahi jayega
 window.onAndroidBack = function(){
+  if ($('mv').classList.contains('on')) { closeViewer(); return true; }
   if ($('modal').classList.contains('on')) { $('modal').classList.remove('on'); return true; }
   if (current === 'callScreen') return true;
   if (current === 'chatScreen' || current === 'settingsScreen') { chatWith=null; chatGroup=null; show('homeScreen'); renderRecent(); return true; }
