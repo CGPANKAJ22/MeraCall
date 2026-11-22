@@ -477,10 +477,19 @@ function fmtTime(ts){ const d=new Date(ts); return d.toLocaleTimeString([], {hou
 function fmtDur(s){ const m=Math.floor(s/60), x=s%60; return (m<10?'0':'')+m+':'+(x<10?'0':'')+x; }
 function validNum(n){ return /^[6-9]\d{9}$/.test(n); }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
-function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 let current = null;
 let me = store.get('me', null);          // {num, name}
+// Marammat: purane version me photo/video ki jagah "null" text ban gaya tha — use hatao
+try { if (!localStorage.getItem('fixNull1')) {
+  Object.keys(localStorage).filter(k=>k.indexOf('msgs_') === 0).forEach(k=>{
+    const arr = JSON.parse(localStorage.getItem(k) || '[]'); if (!Array.isArray(arr)) return;
+    const out = arr.filter(m=>!(m && m.from === 'them' && m.kind !== 'file' && (m.text === 'null' || m.text === 'undefined')));
+    if (out.length !== arr.length) localStorage.setItem(k, JSON.stringify(out));
+  });
+  localStorage.setItem('fixNull1', '1');
+} } catch(e) {}
 let peer = null;
 const conns = {};                         // number -> DataConnection
 let contacts = store.get('contacts', {}); // number -> {name, last, ts, unread}
@@ -795,7 +804,7 @@ function setupConn(c){
   const num = c.peer.replace(PREFIX, '');
   conns[num] = c;
   c.on('open', ()=>{
-    c._opening = false;
+    c._opening = false; c._rx = Date.now();
     if (c.metadata && c.metadata.name) touchContact(num, c.metadata.name);
     send(num, { t:'hello', name: me.name });
     flushPending(num);
@@ -803,10 +812,30 @@ function setupConn(c){
     flushDeletes(num); sendSeen(num); sendGroupStuff(num);
     if (current === 'chatScreen' && chatWith === num) $('chatSub').textContent = 'Online';
   });
-  c.on('data', d => onData(num, d));
+  c.on('data', d => { c._rx = Date.now(); if (d && d.t === 'pong') { c._pong = true; return; } if (d && d.t === 'ping') { try { c.send({ t:'pong' }); } catch(e) {} return; } onData(num, d); });
   c.on('close', ()=>{ sendingNow[num] = null; if (conns[num] === c) delete conns[num]; if (current==='chatScreen' && chatWith===num) $('chatSub').textContent=''; });
   c.on('error', ()=>{ if (conns[num] === c) delete conns[num]; });
 }
+
+/** Dhadkan: mobile net chupchaap toot jaye to pata chale. 10 sec me ping; 30 sec jawab nahi = connection mara, naya jodo */
+function heartbeat(){
+  Object.keys(conns).forEach(num=>{
+    const c = conns[num]; if (!c || !c.open) return;
+    try { c.send({ t:'ping' }); } catch(e) {}
+    // jawab (ack) nahi aaya to text dobara (saamne wala id se pehchaan kar dobara nahi dikhata)
+    if (getMsgs(num).some(m=>m.from === 'me' && !m.ok && m.kind !== 'file' && !m.deleted && m.text && Date.now() - m.ts > 15000)) flushPending(num);
+    if (c._pong && Date.now() - (c._rx || 0) > 30000) {
+      console.log('dead conn', num);
+      try { c.close(); } catch(e) {}
+      (lanes[num] || []).forEach(l=>{ try { l.close(); } catch(e) {} }); lanes[num] = [];
+      if (conns[num] === c) delete conns[num];
+      sendingNow[num] = null;
+      Object.keys(outFiles).forEach(id=>{ if (outFiles[id].num === num) outFiles[id].streaming = false; });
+      setTimeout(()=>getConn(num), 500);
+    }
+  });
+}
+setInterval(heartbeat, 10000);
 
 function send(num, obj){
   const c = conns[num];
@@ -823,6 +852,7 @@ function onData(num, d){
         isTrusted(num).then(ok=>{ if (ok) onData(num, Object.assign({}, d, { _checked: true })); }); // unverified ka message chhod do
         break;
       }
+      if (typeof d.text !== 'string' || !d.text) { send(num, { t:'ack', id:d.id }); break; }   // khaali (purane version ki galti): chhodo
       const msgs = getMsgs(num);
       if (!msgs.find(m=>m.id===d.id)) {
         msgs.push({ id:d.id, from:'them', text:String(d.text).slice(0,4000), ts:d.ts||Date.now() });
@@ -869,7 +899,7 @@ function onData(num, d){
     }
     case 'ack': {
       const msgs = getMsgs(num); const m = msgs.find(x=>x.id===d.id);
-      if (m && !m.ok) { m.ok = true; saveMsgs(num, msgs); if (current==='chatScreen' && chatWith===num) renderMsgs(); }
+      if (m && !m.ok && m.kind !== 'file') { m.ok = true; saveMsgs(num, msgs); if (current==='chatScreen' && chatWith===num) renderMsgs(); }
       break;
     }
     case 'end': case 'reject': case 'busy':
@@ -896,7 +926,7 @@ function saveMsgs(num, m){ store.set('msgs_'+num, m.slice(-500)); webNotify(num)
 function flushPending(onlyNum){
   Object.keys(contacts).forEach(num=>{
     if (onlyNum && num !== onlyNum) return;
-    const pend = getMsgs(num).filter(m=>m.from==='me' && !m.ok);
+    const pend = getMsgs(num).filter(m=>m.from==='me' && !m.ok && m.kind !== 'file' && !m.deleted && typeof m.text === 'string' && m.text);
     if (!pend.length) return;
     const c = conns[num];
     if (c && c.open) pend.forEach(m=>send(num, { t:'msg', id:m.id, text:m.text, ts:m.ts, name:me.name }));
@@ -1314,7 +1344,7 @@ function pumpFiles(num){
   sendingNow[num] = id;
   send(num, { t:'fstart', id, name:m.name, mime:m.mime, size:m.size, thumb:m.thumb, ts:m.ts, from:me.name, doc: !!m.doc, v:2, ch:CH2 });
   clearTimeout(o.wait);
-  o.wait = setTimeout(()=>{ if (sendingNow[num] === id && !o.streaming) sendingNow[num] = null; }, 25000);
+  o.wait = setTimeout(()=>{ if (sendingNow[num] === id && !o.streaming) { sendingNow[num] = null; pumpFiles(num); } }, 25000);   // jawab nahi: dobara poochho
 }
 
 async function streamFile(num, id, from){
@@ -1384,7 +1414,8 @@ async function streamFile2(num, id, missing){
       const idx = queue.shift();
       try {
         const dc = via.dataChannel;
-        while (dc && dc.bufferedAmount > 4*1024*1024) { await sleep(15); if (!via.open) throw new Error('band'); }
+        const w0 = Date.now();
+        while (dc && dc.bufferedAmount > 4*1024*1024) { await sleep(15); if (!via.open) throw new Error('band'); if (Date.now() - w0 > 20000) { try { via.close(); } catch(e) {} throw new Error('atka'); } }
         const buf = new Uint8Array(await o.blob.slice(idx * CH2, (idx + 1) * CH2).arrayBuffer());
         if (lane) lane.send(frameOf(id, idx, buf).buffer);
         else via.send({ t:'fchunk2', id, i: idx, d: buf });      // raaste na khule: purane connection se
@@ -1483,6 +1514,7 @@ function onFileData(num, d){
       if (kind === 'other' || size <= 0 || size > (LIMIT[kind] || 0) + 1024 || typeof d.id !== 'string' || d.id.length > 40) { send(num, { t:'fno', id:d.id }); return; }
       const name = String(d.name || 'file').slice(0, 80);
       const msgs = getMsgs(num); let m = msgs.find(x=>x.id === d.id);
+      if (m && m.kind !== 'file') { Object.assign(m, { kind:'file', name, mime, size, thumb: safeThumb(d.thumb), prog:0, uri:'', doc: !!d.doc }); delete m.text; saveMsgs(num, msgs); if (current === 'chatScreen' && chatWith === num) renderMsgs(); }
       if (m && m.uri) { send(num, { t:'fdone', id:d.id }); return; }   // pehle hi aa chuki
       if (!m) {
         m = { id:d.id, from:'them', kind:'file', name, mime, size, thumb: safeThumb(d.thumb), ts: d.ts || Date.now(), prog:0, uri:'', doc: !!d.doc };
