@@ -41,7 +41,7 @@
   .msg.them{align-self:flex-start;background:#fff;border-bottom-left-radius:4px}
   .msg .t{font-size:10px;color:var(--muted);text-align:right;margin-top:3px}
   .msg{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-  .tk{color:#8a93a6}.tk.seen{color:#1a8cff;font-weight:700}
+  .tk{color:#8a93a6}.tk.seen{color:#25d366;font-weight:700}
   .msg.del{font-style:italic;color:var(--muted)}
   .msg.hold{filter:brightness(.88)}
   .gname{font-size:12px;font-weight:700;color:#7048e8;margin-bottom:2px}
@@ -67,8 +67,10 @@
   .mvcount{position:absolute;bottom:12px;left:0;right:0;text-align:center;color:#aaa;font-size:12px;pointer-events:none}
   .fcard small{color:var(--muted)}
   .msg.file .t{padding:0 6px 2px}
-  .fbar{height:4px;background:#0001;border-radius:2px;margin:4px 6px 0;overflow:hidden}
-  .fbar i{display:block;height:100%;background:var(--blue);width:0;transition:width .3s}
+  .fbar{height:6px;background:#0002;border-radius:3px;margin:6px 6px 0;overflow:hidden}
+  .fbar i{display:block;height:100%;background:#25d366;width:0;transition:width .3s}
+  .fwrap{position:relative}
+  .fov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#0006;color:#fff;font-weight:700;font-size:18px;border-radius:10px}
   #attachBtn{background:#eef3ff;color:var(--blue)}
   .avatar.dp{background-size:cover;background-position:center;color:transparent}
   .ring{padding:2px;border-radius:50%;border:2.5px solid var(--green);display:inline-flex}
@@ -81,6 +83,8 @@
   .sbody{flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
   .sbody img{max-width:100%;max-height:100%;object-fit:contain}
   .stext{font-size:26px;font-weight:600;text-align:center;padding:30px;white-space:pre-wrap;word-wrap:break-word;line-height:1.35}
+  .sveye{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);background:#0009;color:#fff;border:0;border-radius:20px;padding:8px 18px;font-size:15px;z-index:3}
+  .sbody video{max-width:100%;max-height:100%}
   .scap{position:absolute;bottom:0;left:0;right:0;padding:14px 16px 22px;background:linear-gradient(transparent,#000c);font-size:16px;text-align:center}
   .colors{display:flex;gap:10px;justify-content:center;padding:12px}
   .colors b{width:30px;height:30px;border-radius:50%;border:3px solid #fff8;display:inline-block}
@@ -191,9 +195,9 @@
       </div>
       <div class="row" style="margin-top:8px">
         <button class="btn ghost" id="stTextBtn">✏️ Text status</button>
-        <button class="btn" id="stPhotoBtn">📷 Photo status</button>
+        <button class="btn" id="stPhotoBtn">📷 Photo / 🎬 Video</button>
       </div>
-      <p class="hint" id="stHint">Status 12 ghante baad apne aap hat jata hai. Jinke paas aapka number hai, wo dekh sakte hain.</p>
+      <p class="hint" id="stHint">Status 12 ghante baad apne aap hat jata hai. Camera se bhi khinch sakte hain. Video 30 second tak.</p>
     </div>
     <div class="secTitle">Haal ke updates</div>
     <div class="list card" id="statusList" style="padding:4px 12px"></div>
@@ -284,6 +288,7 @@
   <div class="sbody" id="seBody" style="flex-direction:column">
     <textarea id="seText" maxlength="700" placeholder="Kuch likhiye…"></textarea>
     <img id="seImg" style="display:none;max-height:60vh">
+    <video id="seVid" style="display:none;max-height:60vh;max-width:100%" controls playsinline loop></video>
   </div>
   <div class="colors" id="seColors"></div>
   <div class="composer" style="background:#0003;border:none">
@@ -299,6 +304,7 @@
     <div style="flex:1"><div id="svName" style="font-weight:600"></div><div id="svTime" style="font-size:12px;opacity:.75"></div></div>
     <button class="iconbtn" id="svDel" style="display:none">🗑️</button></div>
   <div class="sbody" id="svBody"></div>
+  <button id="svEye" class="sveye" style="display:none">👁 0</button>
 </div>
 
 <!-- GROUP: banana / member jodna -->
@@ -625,12 +631,15 @@ async function refreshMyVerify(){
 }
 let phoneContacts = [];
 
+/** Badi cheez (video status): 2 minute tak intezaar */
+async function fbBig(path, opts, withAuth){ return fb(path, Object.assign({ _ms: 120000 }, opts), withAuth); }
 async function fb(path, opts, withAuth){
   if (!HAS_FB) throw new Error('no-fb');
   if (withAuth) { const t = await idToken(); if (!t) throw new Error('no-auth'); path += (path.includes('?') ? '&' : '?') + 'auth=' + encodeURIComponent(t); }
-  const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), 10000);
+  const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), (opts && opts._ms) || 10000);
   try {
-    const r = await fetch(FB + path, Object.assign({ signal: ctl.signal, cache:'no-store' }, opts||{}));
+    const o2 = Object.assign({ signal: ctl.signal, cache:'no-store' }, opts||{}); delete o2._ms;
+    const r = await fetch(FB + path, o2);
     if (!r.ok) throw new Error('HTTP '+r.status);
     return await r.json();
   } finally { clearTimeout(t); }
@@ -1020,6 +1029,7 @@ function sendTextTo(num, text){
   touchContact(num, null, 'Aap: '+m.text);
   if (current === 'chatScreen' && chatWith === num) renderMsgs();
   if (!send(num, { t:'msg', id:m.id, text:m.text, ts:m.ts, name:me.name })) getConn(num);
+  setTimeout(()=>textToPc(num, m.id), 5000);     // 5 sec me jawab nahi = saamne wala offline: PC daakghar par rakho
 }
 
 // ================= DP (profile photo) =================
@@ -1094,7 +1104,7 @@ const ST_COLORS = ['#0A7CFF', '#1fb760', '#e8590c', '#ae3ec9', '#e03131', '#1b1f
 let stSeen = store.get('stSeen', {});     // "num/sid" -> 1
 let stFeed = {};                           // num -> [ {sid, type, text, bg, ts, img?} ]
 let stMine = [];
-let seMode = 'text', seBg = ST_COLORS[0], seBlob = null, seImgData = '';
+let seMode = 'text', seBg = ST_COLORS[0], seBlob = null, seImgData = '', seVidData = '', seVidDur = 0;
 function sidNew(){ return (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).toLowerCase(); }
 function timeAgo(ts){ const m = Math.floor((Date.now() - ts) / 60000); return m < 1 ? 'abhi' : m < 60 ? m + ' min pehle' : Math.floor(m/60) + ' ghante pehle'; }
 async function fetchStatus(num){
@@ -1134,6 +1144,8 @@ async function cleanupMine(){
     for (const sid of Object.keys(d)) if (!(d[sid] && d[sid].ts > Date.now() - DAY)) {
       await fb('status/' + me.num + '/' + sid + '.json', { method:'DELETE' }, true).catch(()=>{});
       await fb('statusImg/' + me.num + '/' + sid + '.json', { method:'DELETE' }, true).catch(()=>{});
+      await fb('statusVid/' + me.num + '/' + sid + '.json', { method:'DELETE' }, true).catch(()=>{});
+      await fb('statusSeen/' + me.num + '/' + sid + '.json', { method:'DELETE' }, true).catch(()=>{});
     }
   } catch(e) {}
 }
@@ -1158,33 +1170,119 @@ function openStatusEditor(mode){
   if (!HAS_AUTH || !me) return toast('Status ke liye login zaroori hai');
   if (VERIFY_REQUIRED && !verifiedSet.has(me.num)) return toast('Pehle number verify karein');
   if (stMine.length >= 10) return toast('Ek saath 10 se zyada status nahi. Purana hatayein.');
-  seMode = mode; seBlob = null; seImgData = '';
-  $('seTitle').textContent = mode === 'text' ? 'Text status' : 'Photo status';
+  seMode = mode; seBlob = null; seImgData = ''; seVidData = ''; seVidDur = 0;
+  $('seTitle').textContent = mode === 'text' ? 'Text status' : mode === 'video' ? 'Video status' : 'Photo status';
   $('seText').style.display = mode === 'text' ? '' : 'none';
   $('seImg').style.display = mode === 'photo' ? '' : 'none';
-  $('seCap').style.display = mode === 'photo' ? '' : 'none';
+  $('seVid').style.display = mode === 'video' ? '' : 'none';
+  try { $('seVid').pause && $('seVid').pause(); } catch(e) {}
+  $('seCap').style.display = mode !== 'text' ? '' : 'none';
   $('seColors').style.display = mode === 'text' ? '' : 'none';
   $('seText').value = ''; $('seCap').value = '';
   $('statusEdit').style.background = mode === 'text' ? seBg : '#000';
   show('statusEdit');
 }
-async function pickStatusPhoto(){
-  const f = await pickFile('image/*'); if (!f) return;
+// Firebase kitna bhara hai (PC backup batata hai) -> utni quality. 0 = sabse achhi
+let quotaLv = { lv: 0, at: 0 };
+async function quotaLevel(){
+  if (Date.now() - quotaLv.at < 10*60000) return quotaLv.lv;
+  try { const q = await fb('quota.json'); quotaLv = { lv: Math.max(0, Math.min(3, +(q && q.level) || 0)), at: Date.now() }; } catch(e) { quotaLv.at = Date.now(); }
+  return quotaLv.lv;
+}
+const ST_PHOTO_Q = [[3840, 1600*1024], [2560, 800*1024], [1600, 350*1024], [1080, 200*1024]];   // 4K tak
+const ST_VIDEO_Q = [[720, 1200000], [540, 800000], [480, 550000], [360, 350000]];                 // mid quality
+const ST_VID_MAX = 6.6 * 1024 * 1024;
+function blobToDataUrl(b){ return new Promise((res, rej)=>{ const r = new FileReader(); r.onload = ()=>res(r.result); r.onerror = rej; r.readAsDataURL(b); }); }
+/** Video: 30 sec tak, mid quality (canvas + MediaRecorder se dobara banao) */
+async function shrinkVideo(file, q, onProg){
+  const url = URL.createObjectURL(file);
+  const v = document.createElement('video');
+  v.src = url; v.playsInline = true; v.preload = 'auto';
+  try {
+    await new Promise((res, rej)=>{ v.onloadedmetadata = res; v.onerror = ()=>rej(new Error('open')); setTimeout(()=>rej(new Error('open')), 15000); });
+    const full = isFinite(v.duration) ? v.duration : 30, dur = Math.min(30, full);
+    const W = v.videoWidth || 640, H = v.videoHeight || 360;
+    const k = Math.min(1, q[0] / Math.min(W, H));
+    const okType = /^video\/(mp4|webm)$/.test(file.type || '');
+    // pehle se chhoti aur 30 sec ki: waise hi
+    if (okType && full <= 30.5 && k === 1 && file.size <= Math.max(q[1] / 8 * full * 1.4, 400*1024) && file.size <= ST_VID_MAX) return { blob: file, dur: full };
+    const canRec = typeof MediaRecorder !== 'undefined' && document.createElement('canvas').captureStream;
+    if (!canRec) { if (okType && full <= 30.5 && file.size <= ST_VID_MAX) return { blob: file, dur: full }; throw new Error('norec'); }
+    const cw = Math.max(2, Math.round(W * k / 2) * 2), chh = Math.max(2, Math.round(H * k / 2) * 2);
+    const cv = document.createElement('canvas'); cv.width = cw; cv.height = chh;
+    const g = cv.getContext('2d');
+    const stream = cv.captureStream(30);
+    let ac = null;
+    try {   // awaaz (speaker par bina bajaye)
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      const src = ac.createMediaElementSource(v), dst = ac.createMediaStreamDestination();
+      src.connect(dst); dst.stream.getAudioTracks().forEach(t=>stream.addTrack(t));
+      if (ac.state === 'suspended') await ac.resume().catch(()=>{});
+    } catch(e) { v.muted = true; }
+    const mime = ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp8', 'video/webm'].find(t=>MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || '';
+    const rec = new MediaRecorder(stream, Object.assign(mime ? { mimeType: mime } : {}, { videoBitsPerSecond: q[1], audioBitsPerSecond: 64000 }));
+    const parts = [];
+    rec.ondataavailable = e=>{ if (e.data && e.data.size) parts.push(e.data); };
+    const stopped = new Promise(r=>{ rec.onstop = r; });
+    v.style.cssText = 'position:fixed;left:-9999px;top:0;width:2px;height:2px';
+    document.body.appendChild(v);
+    rec.start(1000);
+    await v.play();
+    await new Promise(res=>{
+      const tick = setInterval(()=>{
+        try { g.drawImage(v, 0, 0, cw, chh); } catch(e) {}
+        if (onProg) onProg(Math.min(99, Math.floor(v.currentTime * 100 / dur)));
+        if (v.ended || v.currentTime >= dur) { clearInterval(tick); res(); }
+      }, 33);
+      v.onended = ()=>{ clearInterval(tick); res(); };
+    });
+    v.pause(); rec.stop(); await stopped;
+    stream.getTracks().forEach(t=>t.stop()); if (ac) ac.close().catch(()=>{});
+    v.remove && v.remove();
+    const blob = new Blob(parts, { type: 'video/webm' });
+    if (!blob.size) throw new Error('khaali');
+    return { blob, dur: Math.round(dur * 10) / 10 };
+  } finally { try { URL.revokeObjectURL(url); } catch(e) {} }
+}
+/** Status: gallery ya camera se photo / video */
+async function pickStatusMedia(){
+  if (!HAS_AUTH || !me) return toast('Status ke liye login zaroori hai');
+  const f = await pickFile('image/*,video/*,.mcstatus'); if (!f) return;
+  const lv = await quotaLevel();
+  if (/^video\//.test(f.type || '') || /\.(mp4|3gp|webm|mkv|mov)$/i.test(f.name || '')) return statusVideo(f, lv);
   toast('Photo taiyaar ho rahi hai…', 1500);
   try {
+    const [side, bytes] = ST_PHOTO_Q[lv];
     let data = '';
-    const nr = nativeCompress(1080, 200*1024, false, 0);
-    if (nr && nr.img.length <= 290000) data = nr.img;
+    const nr = nativeCompress(side, bytes, false, 0);
+    if (nr && nr.img.length <= 2250000) data = nr.img;
     else {
-      const r = await compressImage(f, 1080, 200*1024);
-      data = r.canvas.toDataURL('image/jpeg', 0.8); let q = 0.7;
-      while (data.length > 280000 && q > 0.3) { data = r.canvas.toDataURL('image/jpeg', q); q -= 0.1; }
-      if (data.length > 290000) data = thumbOf(r.canvas, 720, 0.6);
+      const r = await compressImage(f, side, bytes);
+      let q = 0.85; data = r.canvas.toDataURL('image/jpeg', q);
+      while (data.length > bytes * 1.37 && q > 0.35) { q -= 0.1; data = r.canvas.toDataURL('image/jpeg', q); }
+      if (data.length > 2250000) data = thumbOf(r.canvas, 1600, 0.7);
     }
     openStatusEditor('photo');      // (ye seImgData khaali karta hai, isliye photo baad me rakho)
     seImgData = data;
     $('seImg').src = data;
+    if (lv) toast('Abhi server par zyada status hain — photo thodi halki lagegi', 2500);
   } catch(e) { toast('Ye photo nahi khuli'); }
+}
+const pickStatusPhoto = pickStatusMedia;
+async function statusVideo(f, lv){
+  if (f.size > 300*1024*1024) return toast('Video bahut badi hai');
+  toast('Video taiyaar ho rahi hai… (30 sec tak)', 2500);
+  try {
+    const r = await shrinkVideo(f, ST_VIDEO_Q[lv], p=>toast('Video taiyaar ho rahi hai… ' + p + '%', 1500));
+    if (r.blob.size > ST_VID_MAX) return toast('Video abhi bhi badi hai — chhoti video chuniye', 3500);
+    const data = await blobToDataUrl(r.blob);
+    const clean = data.replace(/^data:video\/[^;,]*(;[^,]*)?;base64,/, (m)=>/webm/.test(m) ? 'data:video/webm;base64,' : 'data:video/mp4;base64,');
+    if (!/^data:video\/(webm|mp4);base64,/.test(clean)) return toast('Ye video nahi chal sakti');
+    openStatusEditor('video');
+    seVidData = clean; seVidDur = r.dur;
+    try { $('seVid').src = URL.createObjectURL(r.blob); } catch(e) { $('seVid').src = clean; }
+    toast('✅ Video taiyaar (' + Math.round(r.blob.size / 1024 / 102.4) / 10 + ' MB' + (lv ? ', server bhara hai isliye halki' : '') + ')', 2500);
+  } catch(e) { toast('Ye video status me nahi lag saki. Chhoti (30 sec) video chuniye.', 3500); }
 }
 async function postStatus(){
   const sid = sidNew();
@@ -1192,13 +1290,21 @@ async function postStatus(){
   if (seMode === 'text') {
     const t = $('seText').value.trim(); if (!t) return toast('Kuch likhiye');
     rec.text = t.slice(0, 700); rec.bg = seBg;
+  } else if (seMode === 'video') {
+    if (!seVidData) return toast('Video chuniye');
+    const cap = $('seCap').value.trim(); if (cap) rec.text = cap.slice(0, 300);
+    rec.sz = Math.round(seVidData.length * 0.75); rec.dur = seVidDur || 30;
   } else {
     if (!seImgData) return toast('Photo chuniye');
     const cap = $('seCap').value.trim(); if (cap) rec.text = cap.slice(0, 300);
+    rec.sz = Math.round(seImgData.length * 0.75);
   }
   $('sePost').disabled = true;
+  if (seMode === 'video') toast('Video status upload ho raha hai…', 4000);
   try {
     if (seMode === 'photo') await fb('statusImg/' + me.num + '/' + sid + '.json', { method:'PUT', body: JSON.stringify(seImgData) }, true);
+    if (seMode === 'video') await fbBig('statusVid/' + me.num + '/' + sid + '.json', { method:'PUT', body: JSON.stringify(seVidData) }, true);
+    try { $('seVid').pause && $('seVid').pause(); } catch(e) {}
     await fb('status/' + me.num + '/' + sid + '.json', { method:'PUT', body: JSON.stringify(rec) }, true);
     toast('✅ Status lag gaya');
     show('homeScreen'); switchTab('tabStatus');
@@ -1222,41 +1328,92 @@ async function openStatus(num){
   show('statusView');
   showStatusItem();
 }
+const vidCache = {};   // "num/sid" -> blob URL
+function dataUrlToObjUrl(d){
+  const m = /^data:(video\/(webm|mp4));base64,/.exec(d); if (!m) return '';
+  const b = atob(d.slice(m[0].length)), u = new Uint8Array(b.length);
+  for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
+  return URL.createObjectURL(new Blob([u], { type: m[1] }));
+}
+function stopSvVideo(){ const v = $('svBody').querySelector && $('svBody').querySelector('video'); if (v) { try { v.pause(); } catch(e) {} } }
 async function showStatusItem(){
-  clearInterval(sv.timer);
+  clearInterval(sv.timer); stopSvVideo();
   const s = sv.list[sv.i]; if (!s) return closeStatus();
   const bars = $('svBars').children || [];
   for (let k = 0; k < bars.length; k++) { const i = bars[k].firstChild; if (i) i.style.width = k < sv.i ? '100%' : '0'; }
   $('svTime').textContent = timeAgo(s.ts);
   const body = $('svBody');
+  const mine = sv.num === me.num;
+  $('svEye').style.display = mine ? '' : 'none';
+  if (mine) loadSeenCount(s);
+  let vid = null;
   if (s.type === 'text') {
     body.style.background = /^#[0-9a-fA-F]{6}$/.test(s.bg || '') ? s.bg : '#0A7CFF';
     body.innerHTML = '<div class="stext">' + esc(s.text || '') + '</div>';
+  } else if (s.type === 'video') {
+    body.style.background = '#000';
+    body.innerHTML = '<div class="empty" style="color:#fff">Video aa rahi hai…</div>';
+    const key = sv.num + '/' + s.sid;
+    let src = vidCache[key];
+    if (!src) { let d = ''; try { d = await fbBig('statusVid/' + key + '.json'); } catch(e) {} if (typeof d === 'string') { src = dataUrlToObjUrl(d); if (src) vidCache[key] = src; } }
+    if (sv.list[sv.i] !== s) return;
+    body.innerHTML = (src ? '<video src="' + esc(src) + '" autoplay playsinline></video>' : '<div class="empty" style="color:#fff">Video nahi khuli</div>') + (s.text ? '<div class="scap">' + esc(s.text) + '</div>' : '');
+    vid = body.querySelector ? body.querySelector('video') : null;
   } else {
     body.style.background = '#000';
     body.innerHTML = '<div class="empty" style="color:#fff">Photo aa rahi hai…</div>';
     const key = sv.num + '/' + s.sid;
     let img = imgCache[key];
-    if (!img) { try { img = await fb('statusImg/' + key + '.json'); } catch(e) {} if (typeof img === 'string' && /^data:image\/jpeg;base64,/.test(img)) imgCache[key] = img; else img = ''; }
+    if (!img) { try { img = await fbBig('statusImg/' + key + '.json'); } catch(e) {} if (typeof img === 'string' && /^data:image\/jpeg;base64,/.test(img)) imgCache[key] = img; else img = ''; }
     if (sv.list[sv.i] !== s) return;
     body.innerHTML = (img ? '<img src="' + img + '">' : '<div class="empty" style="color:#fff">Photo nahi khuli</div>') + (s.text ? '<div class="scap">' + esc(s.text) + '</div>' : '');
   }
-  if (sv.num !== me.num) { stSeen[sv.num + '/' + s.sid] = 1; store.set('stSeen', stSeen); }
+  if (!mine) {
+    stSeen[sv.num + '/' + s.sid] = 1; store.set('stSeen', stSeen);
+    markStatusSeen(sv.num, s.sid);
+  }
   sv.t0 = Date.now();
-  const dur = s.type === 'text' ? 5000 : 6000;
+  const dur = s.type === 'text' ? 5000 : s.type === 'video' ? Math.max(3, Math.min(31, +s.dur || 30)) * 1000 : 6000;
   sv.timer = setInterval(()=>{
-    const p = Math.min(1, (Date.now() - sv.t0) / dur);
+    let p = Math.min(1, (Date.now() - sv.t0) / dur);
+    if (vid && vid.duration && isFinite(vid.duration)) p = vid.ended ? 1 : Math.min(1, vid.currentTime / vid.duration);
     const i = bars[sv.i] && bars[sv.i].firstChild; if (i) i.style.width = (p*100) + '%';
-    if (p >= 1) { clearInterval(sv.timer); sv.i++; showStatusItem(); }
+    if (p >= 1 || (vid && vid.error)) { clearInterval(sv.timer); sv.i++; showStatusItem(); }
   }, 100);
 }
-function closeStatus(){ clearInterval(sv.timer); show('homeScreen'); switchTab('tabStatus'); renderStatusList(); }
+/** Maine dekha: status wale ko pata chale (sirf use dikhta hai) */
+const seenSent = store.get('stSeenSent', {});
+function markStatusSeen(num, sid){
+  const k = num + '/' + sid; if (seenSent[k] || !HAS_AUTH) return;
+  fb('statusSeen/' + num + '/' + sid + '/' + me.num + '.json', { method:'PUT', body: JSON.stringify({ '.sv':'timestamp' }) }, true)
+    .then(()=>{ seenSent[k] = Date.now(); Object.keys(seenSent).forEach(x=>{ if (Date.now() - seenSent[x] > 2*DAY) delete seenSent[x]; }); store.set('stSeenSent', seenSent); })
+    .catch(()=>{});
+}
+let seenList = [];
+async function loadSeenCount(s){
+  $('svEye').textContent = '👁 …'; seenList = [];
+  try {
+    const d = await fb('statusSeen/' + me.num + '/' + s.sid + '.json', null, true) || {};
+    if (sv.list[sv.i] !== s) return;
+    seenList = Object.keys(d).filter(n=>/^\d{10}$/.test(n) && n !== me.num).map(n=>({ num:n, ts:+d[n] || 0 })).sort((a,b)=>b.ts - a.ts);
+    $('svEye').textContent = '👁 ' + seenList.length;
+  } catch(e) { $('svEye').textContent = '👁'; }
+}
+function showSeenList(){
+  clearInterval(sv.timer); stopSvVideo();
+  const txt = seenList.length ? seenList.map(x=>'• ' + esc(contactName(x.num)) + ' <small style="opacity:.7">' + (x.ts ? timeAgo(x.ts) : '') + '</small>').join('<br>') : 'Abhi kisi ne nahi dekha';
+  modal('👁 Kisne dekha (' + seenList.length + ')', '', [{ label:'Theek hai', cls:'', fn:()=>showStatusItem() }]);
+  $('modalText').innerHTML = txt;
+}
+function closeStatus(){ clearInterval(sv.timer); stopSvVideo(); show('homeScreen'); switchTab('tabStatus'); renderStatusList(); }
 async function deleteMyStatus(){
   const s = sv.list[sv.i]; if (!s) return;
   clearInterval(sv.timer);
   try {
     await fb('status/' + me.num + '/' + s.sid + '.json', { method:'DELETE' }, true);
     await fb('statusImg/' + me.num + '/' + s.sid + '.json', { method:'DELETE' }, true).catch(()=>{});
+    await fb('statusVid/' + me.num + '/' + s.sid + '.json', { method:'DELETE' }, true).catch(()=>{});
+    await fb('statusSeen/' + me.num + '/' + s.sid + '.json', { method:'DELETE' }, true).catch(()=>{});
   } catch(e) { return toast('Nahi hata. Internet check karein.'); }
   stMine = stMine.filter(x=>x.sid !== s.sid); toast('Status hata diya'); closeStatus();
 }
@@ -1319,8 +1476,8 @@ function thumbOf(canvas, side, q){
 function attachMenu(){
   if (!chatWith) return;
   modal('Kya bhejna hai?', '', [
-    { label:'📷 Photo', cls:'', fn:()=>attachFile('image/*') },
-    { label:'🎬 Video (original, 200 MB tak)', cls:'', fn:()=>attachFile('video/*') },
+    { label:'📷 Photo (Gallery / Camera)', cls:'', fn:()=>attachFile('image/*') },
+    { label:'🎬 Video (Gallery / Camera, 200 MB tak)', cls:'', fn:()=>attachFile('video/*') },
     { label:'📄 PDF', cls:'', fn:()=>attachFile('application/pdf') },
     { label:'📁 Document (original photo, Word, Excel, PPT…)', cls:'', fn:()=>attachFile('image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rtf,.odt,.ods,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/csv,application/zip', true) },
     { label:'Band karein', cls:'ghost', fn:()=>{} } ]);
@@ -1513,7 +1670,7 @@ function setupLane(c){
 let progSave = 0;
 function setProg(num, id, pct){
   const el = document.querySelector ? document.querySelector('[data-fid="'+id+'"]') : null;
-  if (el) { const bar = el.querySelector('.fbar i'); if (bar) bar.style.width = pct + '%'; const t = el.querySelector('.fpct'); if (t) t.textContent = pct + '% · '; }
+  if (el) { const bar = el.querySelector('.fbar i'); if (bar) bar.style.width = pct + '%'; (el.querySelectorAll ? Array.from(el.querySelectorAll('.fpct')) : []).forEach(t=>{ t.textContent = pct + '% · '; }); }
   if (Date.now() - progSave > 1500 || pct >= 100) {
     progSave = Date.now();
     const msgs = getMsgs(num), m = msgs.find(x=>x.id === id);
@@ -1727,6 +1884,29 @@ async function routeFile(num, id){
   pumpFiles(num);                                     // PC nahi: seedha
 }
 
+/** Text: saamne wala offline -> taala laga kar PC daakghar par (bhejne wale ko ✓) */
+const textBusy = {};
+async function textToPc(num, id){
+  if (textBusy[id]) return;
+  const m0 = getMsgs(num).find(x=>x.id === id);
+  if (!m0 || m0.ok || m0.pcSent || m0.deleted || m0.kind === 'file' || !m0.text) return;
+  if (!(await relayUrl())) return;                       // PC band: 🕓 hi rahega, judte hi seedha jayega
+  textBusy[id] = true;
+  try {
+    const theirPk = await getPk(num); if (!theirPk) return;
+    const pre = crypto.getRandomValues(new Uint8Array(8)), raw = crypto.getRandomValues(new Uint8Array(32));
+    const fk = await subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt']);
+    const hdr = await sealHdr(theirPk, { id, t:'text', text: m0.text, ts: m0.ts, name: me.name });
+    const r1 = await pcFetch('PUT', '/f/' + id + '/meta', JSON.stringify({ to: num, chunks: 1, csize: 64, size: 17, hdr }));
+    if (!r1.ok) return;
+    const ct = new Uint8Array(await subtle.encrypt({ name:'AES-GCM', iv: ivOf(pre, 0) }, fk, new Uint8Array([0])));
+    if (!(await pcFetch('PUT', '/f/' + id + '/c/0', ct)).ok) return;
+    if (!(await pcFetch('POST', '/f/' + id + '/done')).ok) return;
+    const msgs = getMsgs(num), m = msgs.find(x=>x.id === id);
+    if (m && !m.ok) { m.pcSent = true; saveMsgs(num, msgs); if (current === 'chatScreen' && chatWith === num) renderMsgs(); }
+  } catch(e) {} finally { delete textBusy[id]; }
+}
+
 /** Paane wala: PC par mere liye kya rakha hai */
 let pcInboxBusy = false;
 async function checkPcInbox(){
@@ -1742,10 +1922,23 @@ async function checkPcInbox(){
 async function gotPcItem(it){
   const num = String(it && it.from || ''); if (!/^\d{10}$/.test(num) || typeof it.id !== 'string' || it.id.length > 40) return;
   const msgs = getMsgs(num), ex = msgs.find(x=>x.id === it.id);
+  if (ex && ex.kind !== 'file') { pcFetch('DELETE', '/f/' + it.id).catch(()=>{}); send(num, { t:'ack', id: it.id }); return; }   // text pehle hi seedha aa gaya
   if (ex && (ex.uri || ex.pc || ex.deleted)) return;
   if (VERIFY_REQUIRED && !(await isTrusted(num))) return;
   const h = await openHdr(num, it.hdr);                 // sirf mera phone khol sakta hai
   if (!h || h.id !== it.id) return;
+  if (h.t === 'text') {                                   // offline me aaya text
+    const text = String(h.text || '').slice(0, 4000); if (!text) return;
+    msgs.push({ id: it.id, from:'them', text, ts: +h.ts || Date.now() }); saveMsgs(num, msgs);
+    pcFetch('DELETE', '/f/' + it.id).catch(()=>{});      // mil gaya: PC se mitao (bhejne wale ko ✓✓)
+    send(num, { t:'ack', id: it.id });
+    const ct = touchContact(num, h.name, text);
+    const viewing = current === 'chatScreen' && chatWith === num && Native.isForeground();
+    if (!viewing) { ct.unread = (ct.unread || 0) + 1; saveContacts(); Native.notifyMessage(num, contactName(num), text.slice(0, 300)); }
+    if (current === 'chatScreen' && chatWith === num) { renderMsgs(); markSeen(num); }
+    renderRecent();
+    return;
+  }
   const mime = String(h.mime || ''), kind = fileKind(mime), size = +h.size || 0;
   if (kind === 'other' || size <= 0 || size > (LIMIT[kind] || 0) + 1024) return;
   const m = ex || { id: it.id };
@@ -1820,6 +2013,17 @@ async function checkPcSent(){
   }
 }
 setInterval(()=>{ if (me && !mustUpd) { checkPcInbox(); checkPcSent(); } }, 60000);
+// Atke hue text (saamne wala offline) -> PC daakghar; aur jinka ✓ hai unka ✓✓ jaldi pata karo
+setInterval(()=>{
+  if (!me || mustUpd) return;
+  let pend = false;
+  Object.keys(contacts).forEach(num=>getMsgs(num).forEach(m=>{
+    if (m.from !== 'me' || m.ok || m.deleted) return;
+    if (m.kind !== 'file' && !m.pcSent && Date.now() - m.ts > 5000) textToPc(num, m.id);
+    if (m.pcSent) pend = true;
+  }));
+  if (pend) checkPcSent();
+}, 20000);
 
 // ================= App ke andar photo/video dekhna =================
 const sentBlobUrls = {};   // bheji hui photo/video (is baar app chalu rehne tak)
@@ -1908,15 +2112,16 @@ function fileBubble(m){
   else if (waitDl) state = '<b class="dl">⬇️ Download dabaiye</b> · ';
   else if (mine && m.pcSent && !m.ok) state = '📦 PC par rakhi (saamne wala le sakta hai) · ';
   else if (!done) state = (mine && m.via === 'pc' ? '📦 PC tak ' : '') + '<span class="fpct">' + (m.prog ? m.prog + '% · ' : (mine ? '🕓 ' : '⬇️ ')) + '</span>';
-  const body = img && m.thumb ? '<img class="fthumb" src="' + esc(safeThumb(m.thumb)) + '">'
+  const busy = !done && !m.fail && !lost && !waitDl;
+  const body = img && m.thumb ? '<div class="fwrap"><img class="fthumb" src="' + esc(safeThumb(m.thumb)) + '">' + (busy ? '<div class="fov"><span class="fpct">' + (m.prog ? m.prog + '% · ' : '…') + '</span></div>' : waitDl ? '<div class="fov">⬇️</div>' : '') + '</div>'
     : '<div class="fcard">' + (/^video\//.test(m.mime) ? '🎬' : /^image\//.test(m.mime) ? '🖼️' : m.mime === 'application/pdf' ? '📄' : '📁') + ' <b>' + esc(m.name) + '</b><br><small>' + fmtSize(m.size) + (m.doc && /^image\//.test(m.mime) ? ' · original' : '') + (done && !mine ? (/^(image|video)\//.test(m.mime) ? ' · ▶ dabakar dekhein' : ' · dabakar kholein') : '') + '</small></div>';
   const bar = (!done && !m.fail && !lost && !waitDl) ? '<div class="fbar"><i style="width:' + (m.prog || 0) + '%"></i></div>' : '';
   return '<div class="msg file ' + (mine ? 'me' : 'them') + '" data-fid="' + esc(m.id) + '" data-mid="' + esc(m.id) + '">' + body + bar
-    + '<div class="t">' + state + fmtTime(m.ts) + (mine && m.ok ? ' ' + tick(m) : mine && m.pcSent ? ' <span class="tk">✓</span>' : '') + '</div></div>';
+    + '<div class="t">' + state + fmtTime(m.ts) + (mine && (m.ok || m.pcSent) ? ' ' + tick(m) : '') + '</div></div>';
 }
 
 // ================= Blue tick (padh liya) =================
-function tick(m){ return m.seen ? '<span class="tk seen">✓✓</span>' : m.ok ? '<span class="tk">✓✓</span>' : '<span class="tk">🕓</span>'; }
+function tick(m){ return m.seen ? '<span class="tk seen">✓✓</span>' : m.ok ? '<span class="tk">✓✓</span>' : m.pcSent ? '<span class="tk">✓</span>' : '<span class="tk">🕓</span>'; }
 /** Chat khuli hai aur app saamne: saamne wale ko batao ki message padh liye */
 function markSeen(num){
   if (!num || !Native.isForeground() || current !== 'chatScreen' || chatWith !== num) return;
@@ -2616,6 +2821,7 @@ $('seColors').innerHTML = ST_COLORS.map(c=>'<b data-c="'+c+'" style="background:
 $('seColors').onclick = e=>{ const c = e.target && e.target.dataset ? e.target.dataset.c : null; if (c) { seBg = c; $('statusEdit').style.background = c; } };
 $('svBack').onclick = closeStatus;
 $('svDel').onclick = deleteMyStatus;
+$('svEye').onclick = e=>{ if (e && e.stopPropagation) e.stopPropagation(); showSeenList(); };
 $('svBody').onclick = e=>{ const x = e.clientX || 0, w = window.innerWidth || 400; clearInterval(sv.timer); if (x < w/3) sv.i = Math.max(0, sv.i - 1); else sv.i++; showStatusItem(); };
 $('msgInput').addEventListener('keydown', e=>{ if (e.key==='Enter') sendMsg(); });
 // Utha lo / Kaato: dabao ya upar kheencho (normal phone jaisa)
