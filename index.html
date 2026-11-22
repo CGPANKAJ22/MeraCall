@@ -83,6 +83,8 @@
   .sbody{flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
   .sbody img{max-width:100%;max-height:100%;object-fit:contain}
   .stext{font-size:26px;font-weight:600;text-align:center;padding:30px;white-space:pre-wrap;word-wrap:break-word;line-height:1.35}
+  .sehint{color:#cfe;font-size:13px;margin:6px 4px;text-align:center}
+  #seCap{border:2px solid #25d366}
   .sveye{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);background:#0009;color:#fff;border:0;border-radius:20px;padding:8px 18px;font-size:15px;z-index:3}
   .sbody video{max-width:100%;max-height:100%}
   .scap{position:absolute;bottom:0;left:0;right:0;padding:14px 16px 22px;background:linear-gradient(transparent,#000c);font-size:16px;text-align:center}
@@ -195,9 +197,10 @@
       </div>
       <div class="row" style="margin-top:8px">
         <button class="btn ghost" id="stTextBtn">✏️ Text status</button>
-        <button class="btn" id="stPhotoBtn">📷 Photo / 🎬 Video</button>
+        <button class="btn" id="stPhotoBtn">🖼️ Gallery se Photo / Video</button>
+        <button class="btn" id="stCamBtn">📸 Camera se Photo / Video</button>
       </div>
-      <p class="hint" id="stHint">Status 12 ghante baad apne aap hat jata hai. Camera se bhi khinch sakte hain. Video 30 second tak.</p>
+      <p class="hint" id="stHint">Status 12 ghante baad apne aap hat jata hai. Lambi video apne aap 30-30 second ke hisson me lagti hai.</p>
     </div>
     <div class="secTitle">Haal ke updates</div>
     <div class="list card" id="statusList" style="padding:4px 12px"></div>
@@ -292,7 +295,8 @@
   </div>
   <div class="colors" id="seColors"></div>
   <div class="composer" style="background:#0003;border:none">
-    <input id="seCap" placeholder="Caption likhein (optional)…" maxlength="300" style="display:none">
+    <input id="seCap" placeholder="✏️ Caption likhein — status ke neeche dikhega" maxlength="300" style="display:none">
+    <div id="seParts" class="sehint" style="display:none"></div>
     <button id="sePost" style="margin-left:auto;background:var(--green)">➤</button>
   </div>
 </div>
@@ -427,11 +431,11 @@
       <button class="btn" id="saveTurn">Save &amp; restart</button>
     </div>
     <div class="card" id="webCard">
-      <div style="font-weight:600">💻 MeraCall Web (PC par chalayein)</div>
-      <p class="hint">PC ke browser me <b id="webUrl">MeraCall Web</b> kholiye. Wahan dikh raha 16 akshar ka code yahan daaliye.</p>
+      <div style="font-weight:600">💻 MeraCall Web (Computer par chalayein)</div>
+      <p class="hint">Computer ke browser me <b id="webUrl">MeraCall Web</b> kholiye. Wahan dikh raha 16 akshar ka code yahan daaliye.</p>
       <input id="webCode" placeholder="ABCD-EFGH-JKLM-NPQR" maxlength="19" autocapitalize="characters" autocomplete="off">
       <div style="height:8px"></div>
-      <button class="btn" id="webLinkBtn">PC jodein</button>
+      <button class="btn" id="webLinkBtn">Computer jodein</button>
       <p class="hint" id="webMsg"></p>
       <div class="list" id="webList"></div>
     </div>
@@ -493,6 +497,7 @@ const store = {
   get(k, d){ try{ const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); }catch(e){ return d; } },
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 };
+window.toast = (t, ms)=>toast(t, ms);
 function toast(t, ms){ const el=$('toast'); el.textContent=t; el.style.display='block'; clearTimeout(toast._t); toast._t=setTimeout(()=>el.style.display='none', ms||2500); }
 function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active', s.id===id)); current=id; }
 function initials(n){ return (n||'?').trim().charAt(0).toUpperCase(); }
@@ -1187,6 +1192,7 @@ function openStatusEditor(mode){
   if (VERIFY_REQUIRED && !verifiedSet.has(me.num)) return toast('Pehle number verify karein');
   if (stMine.length >= 10) return toast('Ek saath 10 se zyada status nahi. Purana hatayein.');
   seMode = mode; seBlob = null; seImgData = ''; seVidData = ''; seVidDur = 0; seVidPc = null;
+  $('seParts').style.display = 'none'; $('seCap').value = '';
   $('seTitle').textContent = mode === 'text' ? 'Text status' : mode === 'video' ? 'Video status' : 'Photo status';
   $('seText').style.display = mode === 'text' ? '' : 'none';
   $('seImg').style.display = mode === 'photo' ? '' : 'none';
@@ -1210,13 +1216,14 @@ const ST_VIDEO_Q = [[720, 1000000], [540, 700000], [480, 500000], [360, 300000]]
 const ST_VID_MAX = 6.6 * 1024 * 1024;
 function blobToDataUrl(b){ return new Promise((res, rej)=>{ const r = new FileReader(); r.onload = ()=>res(r.result); r.onerror = rej; r.readAsDataURL(b); }); }
 /** Video: 30 sec tak, mid quality (canvas + MediaRecorder se dobara banao) */
-async function shrinkVideo(file, q, onProg){
+async function shrinkVideo(file, q, onProg, startSec){
+  startSec = startSec || 0;
   const url = URL.createObjectURL(file);
   const v = document.createElement('video');
   v.src = url; v.playsInline = true; v.preload = 'auto';
   try {
     await new Promise((res, rej)=>{ v.onloadedmetadata = res; v.onerror = ()=>rej(new Error('open')); setTimeout(()=>rej(new Error('open')), 15000); });
-    const full = isFinite(v.duration) ? v.duration : 30, dur = Math.min(30, full);
+    const full0 = isFinite(v.duration) ? v.duration : 30, full = Math.max(0, full0 - startSec), dur = Math.min(30, full);
     const W = v.videoWidth || 640, H = v.videoHeight || 360;
     const k = Math.min(1, q[0] / Math.min(W, H));
     const okType = /^video\/(mp4|webm)$/.test(file.type || '');
@@ -1240,13 +1247,14 @@ async function shrinkVideo(file, q, onProg){
     const stopped = new Promise(r=>{ rec.onstop = r; });
     v.style.cssText = 'position:fixed;left:-9999px;top:0;width:2px;height:2px';
     document.body.appendChild(v);
+    if (startSec) { v.currentTime = startSec; await new Promise(r=>{ v.onseeked = r; setTimeout(r, 3000); }); }
     rec.start(1000);
     await v.play();
     await new Promise(res=>{
       const tick = setInterval(()=>{
         try { g.drawImage(v, 0, 0, cw, chh); } catch(e) {}
-        if (onProg) onProg(Math.min(99, Math.floor(v.currentTime * 100 / dur)));
-        if (v.ended || v.currentTime >= dur) { clearInterval(tick); res(); }
+        if (onProg) onProg(Math.min(99, Math.floor((v.currentTime - startSec) * 100 / dur)));
+        if (v.ended || v.currentTime - startSec >= dur) { clearInterval(tick); res(); }
       }, 33);
       v.onended = ()=>{ clearInterval(tick); res(); };
     });
@@ -1259,9 +1267,9 @@ async function shrinkVideo(file, q, onProg){
   } finally { try { URL.revokeObjectURL(url); } catch(e) {} }
 }
 /** Status: gallery ya camera se photo / video */
-async function pickStatusMedia(){
+async function pickStatusMedia(accept){
   if (!HAS_AUTH || !me) return toast('Status ke liye login zaroori hai');
-  const f = await pickFile('image/*,video/*,.mcstatus'); if (!f) return;
+  const f = await pickFile(accept || 'image/*,video/*,.mcstatus'); if (!f) return;
   const lv = await quotaLevel();
   if (/^video\//.test(f.type || '') || /\.(mp4|3gp|webm|mkv|mov)$/i.test(f.name || '')) return statusVideo(f, lv);
   toast('Photo taiyaar ho rahi hai…', 1500);
@@ -1282,7 +1290,38 @@ async function pickStatusMedia(){
     if (lv) toast('Abhi server par zyada status hain — photo thodi halki lagegi', 2500);
   } catch(e) { toast('Ye photo nahi khuli'); }
 }
-const pickStatusPhoto = pickStatusMedia;
+const pickStatusPhoto = ()=>pickStatusMedia();
+// ---- Lambi video: 30-30 sec hisse (phone khud kaatta hai, quality waisi hi) ----
+const ST_MAX_PARTS = 6;
+function nativeSplit(){
+  return new Promise(res=>{
+    if (!Native.splitPicked) return res(null);
+    const t = setTimeout(()=>{ window.onSplit = null; res(null); }, 180000);
+    window.onSplit = r=>{ clearTimeout(t); window.onSplit = null; try { res(r ? JSON.parse(r) : null); } catch(e) { res(null); } };
+    let ok = false; try { ok = Native.splitPicked(30, ST_MAX_PARTS); } catch(e) {}
+    if (!ok) { clearTimeout(t); window.onSplit = null; res(null); }
+  });
+}
+async function splitStatusVideo(f, info){
+  toast('Video ke hisse ban rahe hain…', 3000);
+  const r = await nativeSplit();
+  if (r && Array.isArray(r.parts) && r.parts.length) {
+    const out = [];
+    for (const p of r.parts) {
+      const resp = await fetch(p.u); if (!resp.ok) { out.length = 0; break; }
+      out.push({ blob: await resp.blob(), mime: 'video/mp4', dur: +p.d || 30 });
+    }
+    if (out.length) return out;
+  }
+  // purana phone / native nahi chala: browser me 30-30 sec (1080p oonchi quality)
+  const full = (info && info.dur) || 30, n = Math.min(ST_MAX_PARTS, Math.max(1, Math.ceil((full - 0.5) / 30)));
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const x = await shrinkVideo(f, [1080, 6000000], p=>toast('Hissa ' + (i + 1) + '/' + n + ' ban raha hai… ' + p + '%', 1500), i * 30);
+    out.push({ blob: x.blob, mime: 'video/webm', dur: x.dur });
+  }
+  return out;
+}
 // ---- Status video PC daakghar se: poori quality, taala-band, 12 ghante ----
 const ST_PC_MAX = 200 * 1024 * 1024;
 function videoInfo(file){
@@ -1357,20 +1396,23 @@ async function statusVideo(f, lv){
     toast('Video taiyaar ho rahi hai… (poori quality)', 2000);
     try {
       const info = await videoInfo(f);
-      let blob = f, mime = /^video\/(mp4|webm|3gpp)$/.test(f.type || '') ? f.type : 'video/mp4', dur = (info && info.dur) || 30;
-      if (!info || !info.dur || info.dur > 30.5) {         // 30 sec se lambi: pehle 30 sec, oonchi quality (1080p)
-        const r = await shrinkVideo(f, [1080, 6000000], p=>toast('Pehle 30 second le rahe hain… ' + p + '%', 1500));
-        blob = r.blob; mime = 'video/webm'; dur = r.dur;
-      }
-      if (blob.size > ST_PC_MAX) return toast('Video 200 MB se badi hai — chhoti chuniye', 3500);
+      const mime0 = /^video\/(mp4|webm|3gpp)$/.test(f.type || '') ? f.type : 'video/mp4';
+      let parts;
+      if (info && info.dur && info.dur <= 30.5) parts = [{ blob: f, mime: mime0, dur: info.dur }];
+      else parts = await splitStatusVideo(f, info);      // lambi: khud 30-30 sec ke hisse
+      if (!parts || !parts.length) throw new Error('split');
+      if (parts.some(p=>p.blob.size > ST_PC_MAX)) return toast('Ek hissa 200 MB se bada hai — chhoti video chuniye', 3500);
       openStatusEditor('video');
-      seVidPc = { blob, mime, dur: Math.round(dur * 10) / 10 }; seVidDur = seVidPc.dur;
-      try { $('seVid').src = URL.createObjectURL(blob); } catch(e) {}
-      toast('✅ Poori quality (' + Math.round(blob.size / 1024 / 102.4) / 10 + ' MB) — PC se jayegi', 2500);
+      parts.forEach(p=>{ p.dur = Math.round(p.dur * 10) / 10; });
+      seVidPc = { parts }; seVidDur = parts[0].dur;
+      try { $('seVid').src = URL.createObjectURL(parts[0].blob); } catch(e) {}
+      if (parts.length > 1) { $('seParts').style.display = ''; $('seParts').textContent = '🎬 Ye video ' + parts.length + ' hisson me lagegi: ' + parts.map(p=>Math.round(p.dur) + 's').join(' + '); }
+      const mb = Math.round(parts.reduce((a, p)=>a + p.blob.size, 0) / 1024 / 102.4) / 10;
+      toast('✅ Poori quality (' + mb + ' MB' + (parts.length > 1 ? ', ' + parts.length + ' hisse' : '') + ') — Server se jayegi', 2500);
       return;
     } catch(e) { /* PC wala nahi bana: neeche halki wali */ }
   }
-  toast('PC band hai — video halki hokar lagegi (30 sec tak)', 2500);
+  toast('Server band hai — video halki hokar lagegi (30 sec tak)', 2500);
   try {
     const r = await shrinkVideo(f, ST_VIDEO_Q[lv], p=>toast('Video taiyaar ho rahi hai… ' + p + '%', 1500));
     if (r.blob.size > ST_VID_MAX) return toast('Video abhi bhi badi hai — chhoti video chuniye', 3500);
@@ -1402,10 +1444,23 @@ async function postStatus(){
   $('sePost').disabled = true;
   if (seMode === 'video') toast('Video status upload ho raha hai…', 4000);
   if (seMode === 'video' && seVidPc) {
-    let up = null;
-    try { up = await uploadStatusPc(sid, seVidPc.blob, seVidPc.mime, p=>toast('📦 Status PC tak… ' + p + '%', 1500)); } catch(e) {}
-    if (!up) { $('sePost').disabled = false; return toast('Video PC tak nahi gayi — PC / internet check karke dobara dabaiye', 3500); }
-    Object.assign(rec, up);
+    // har hissa alag status; aakhri hissa 'sid' par (jo neeche likha jayega), pehle wale naye id par
+    const parts = seVidPc.parts, n = parts.length;
+    for (let i = 0; i < n; i++) {
+      const id = i === n - 1 ? sid : sidNew(), p = parts[i];
+      let up = null;
+      try { up = await uploadStatusPc(id, p.blob, p.mime, x=>toast('📦 Server tak' + (n > 1 ? ' (hissa ' + (i + 1) + '/' + n + ')' : '') + '… ' + x + '%', 1500)); } catch(e) {}
+      if (!up) {
+        $('sePost').disabled = false;
+        return toast(i ? i + ' hisse lag gaye, baaki server tak nahi gaye — internet check karein' : 'Video server tak nahi gayi — internet check karke dobara dabaiye', 4000);
+      }
+      const r = Object.assign({}, rec, up, { dur: p.dur });
+      if (n > 1) r.text = ((rec.text ? rec.text + ' ' : '') + '(' + (i + 1) + '/' + n + ')').slice(0, 700);
+      if (i < n - 1) {
+        try { await fb('status/' + me.num + '/' + id + '.json', { method:'PUT', body: JSON.stringify(r) }, true); }
+        catch(e) { $('sePost').disabled = false; return toast('Status nahi laga. Internet check karein.'); }
+      } else Object.assign(rec, r);
+    }
   }
   try {
     if (seMode === 'photo') await fb('statusImg/' + me.num + '/' + sid + '.json', { method:'PUT', body: JSON.stringify(seImgData) }, true);
@@ -1464,7 +1519,7 @@ async function showStatusItem(){
     if (!src && s.via === 'pc') src = await loadPcStatus(sv.num, s, p=>{ if (sv.list[sv.i] === s) body.innerHTML = '<div class="empty" style="color:#fff">Video aa rahi hai… ' + p + '%</div>'; });
     else if (!src) { let d = ''; try { d = await fbBig('statusVid/' + key + '.json'); } catch(e) {} if (typeof d === 'string') { src = dataUrlToObjUrl(d); if (src) vidCache[key] = src; } }
     if (sv.list[sv.i] !== s) return;
-    body.innerHTML = (src ? '<video src="' + esc(src) + '" autoplay playsinline></video>' : '<div class="empty" style="color:#fff">' + (s.via === 'pc' ? 'PC band hai — ye video abhi nahi chal sakti' : 'Video nahi khuli') + '</div>') + (s.text ? '<div class="scap">' + esc(s.text) + '</div>' : '');
+    body.innerHTML = (src ? '<video src="' + esc(src) + '" autoplay playsinline></video>' : '<div class="empty" style="color:#fff">' + (s.via === 'pc' ? 'Server band hai — ye video abhi nahi chal sakti' : 'Video nahi khuli') + '</div>') + (s.text ? '<div class="scap">' + esc(s.text) + '</div>' : '');
     vid = body.querySelector ? body.querySelector('video') : null;
   } else {
     body.style.background = '#000';
@@ -1582,23 +1637,38 @@ function thumbOf(canvas, side, q){
 
 /** 📎: pehle poochho kya bhejna hai */
 function attachMenu(){
-  if (!chatWith) return;
+  if (!chatWith && !chatGroup) return;
   modal('Kya bhejna hai?', '', [
-    { label:'📷 Photo (Gallery / Camera)', cls:'', fn:()=>attachFile('image/*') },
-    { label:'🎬 Video (Gallery / Camera, 200 MB tak)', cls:'', fn:()=>attachFile('video/*') },
+    { label:'📸 Camera se photo', cls:'', fn:()=>attachFile('image/*,.mccam') },
+    { label:'🎥 Camera se video', cls:'', fn:()=>attachFile('video/*,.mccam') },
+    { label:'📷 Photo (Gallery)', cls:'', fn:()=>attachFile('image/*') },
+    { label:'🎬 Video (Gallery, 200 MB tak)', cls:'', fn:()=>attachFile('video/*') },
     { label:'📄 PDF', cls:'', fn:()=>attachFile('application/pdf') },
     { label:'📁 Document (original photo, Word, Excel, PPT…)', cls:'', fn:()=>attachFile('image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rtf,.odt,.ods,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/csv,application/zip', true) },
     { label:'Band karein', cls:'ghost', fn:()=>{} } ]);
 }
 /** asDoc = Document ki tarah: photo bina chhoti kiye, 100% original quality */
 async function attachFile(accept, asDoc){
-  if (!chatWith) return;
+  if (!chatWith && !chatGroup) return;
+  if (chatGroup) return attachGroupFile(chatGroup, accept, asDoc);
   const num = chatWith;
+  const pr = await prepFile(accept, asDoc); if (!pr) return;
+  const { blob, name, thumb, outMime, kind } = pr;
+  const m = { id: uid() + uid(), from:'me', kind:'file', name, mime: outMime, size: blob.size, thumb, ts: Date.now(), ok:false, prog:0, doc: !!asDoc };
+  const msgs = getMsgs(num); msgs.push(m); saveMsgs(num, msgs);
+  outFiles[m.id] = { num, blob, meta: m };
+  if (isMedia(m)) { try { sentBlobUrls[m.id] = URL.createObjectURL(blob); } catch(e) {} }
+  touchContact(num, null, 'Aap: ' + fileLabel(m));
+  if (current === 'chatScreen' && chatWith === num) renderMsgs();
+  routeFile(num, m.id);
+}
+/** File chunna + taiyaar karna (photo chhoti, size jaanch) — chat aur group dono ke liye */
+async function prepFile(accept, asDoc){
   const f = await pickFile(accept || 'image/*,video/*,application/pdf');
-  if (!f) return;
+  if (!f) return null;
   const mime = mimeOf(f);
   const kind = fileKind(mime);
-  if (kind === 'other') return toast('Ye file nahi bhej sakte. Photo, video, PDF ya document chuniye.');
+  if (kind === 'other') { toast('Ye file nahi bhej sakte. Photo, video, PDF ya document chuniye.'); return null; }
   let blob = f, name = f.name || 'file', thumb = '', outMime = mime;
   if (kind === 'image' && asDoc) toast('Photo original quality me ja rahi hai', 2000);
   if (kind === 'image' && !asDoc) {
@@ -1607,16 +1677,10 @@ async function attachFile(accept, asDoc){
     if (nr) { blob = dataUrlToBlob(nr.img); thumb = nr.thumb || ''; name = name.replace(/\.[^.]+$/, '') + '.jpg'; outMime = 'image/jpeg'; }
     else { try { const r = await compressImage(f, 1600, 700*1024); blob = r.blob; thumb = thumbOf(r.canvas, 180); name = name.replace(/\.[^.]+$/, '') + '.jpg'; outMime = 'image/jpeg'; } catch(e) {} }
   }
-  if (blob.size > LIMIT[kind]) return toast((kind === 'video' ? 'Video' : 'File') + ' bahut badi hai (zyada se zyada ' + fmtSize(LIMIT[kind]) + ')', 3500);
-  if (!blob.size) return toast('Ye file khaali hai');
+  if (blob.size > LIMIT[kind]) { toast((kind === 'video' ? 'Video' : 'File') + ' bahut badi hai (zyada se zyada ' + fmtSize(LIMIT[kind]) + ')', 3500); return null; }
+  if (!blob.size) { toast('Ye file khaali hai'); return null; }
   if (kind === 'video' && blob.size > 30*1024*1024) toast('Badi video hai — WiFi par jaldi jayegi', 3000);
-  const m = { id: uid() + uid(), from:'me', kind:'file', name, mime: outMime, size: blob.size, thumb, ts: Date.now(), ok:false, prog:0, doc: !!asDoc };
-  const msgs = getMsgs(num); msgs.push(m); saveMsgs(num, msgs);
-  outFiles[m.id] = { num, blob, meta: m };
-  if (isMedia(m)) { try { sentBlobUrls[m.id] = URL.createObjectURL(blob); } catch(e) {} }
-  touchContact(num, null, 'Aap: ' + fileLabel(m));
-  if (current === 'chatScreen' && chatWith === num) renderMsgs();
-  routeFile(num, m.id);
+  return { blob, name, thumb, outMime, kind };
 }
 
 /** Agli file shuru karo (saamne wala "fready" bolega tab tukde jayenge) */
@@ -2065,7 +2129,7 @@ const pcDown = {};
 async function downloadPc(num, id){
   if (pcDown[id]) return;
   const m = getMsgs(num).find(x=>x.id === id); if (!m || !m.pc || m.uri) return;
-  if (!(await relayUrl(true))) return toast('PC abhi band hai — PC chalu hone par download hoga', 3500);
+  if (!(await relayUrl(true))) return toast('Server abhi band hai — chalu hone par download hoga', 3500);
   pcDown[id] = true; updateFileMsg(num, id, { prog: 0 });
   let fail = '';
   try {
@@ -2107,7 +2171,7 @@ async function downloadPc(num, id){
   delete pcDown[id];
   if (fail) {
     if (Native.fileAbort) Native.fileAbort(id);
-    if (fail === 'gone') { updateFileMsg(num, id, { pc: null, fail: true }); toast('Ye file ab PC par nahi hai (hata di gayi / 7 din purani)', 3500); }
+    if (fail === 'gone') { updateFileMsg(num, id, { pc: null, fail: true }); toast('Ye file ab server par nahi hai (hata di gayi / 7 din purani)', 3500); }
     else { updateFileMsg(num, id, { prog: 0 }); toast('Download ruk gaya — dobara dabaiye', 3000); }
   }
 }
@@ -2138,13 +2202,13 @@ const sentBlobUrls = {};   // bheji hui photo/video (is baar app chalu rehne tak
 function isMedia(m){ return !!(m && m.kind === 'file' && !m.deleted && /^(image|video)\//.test(m.mime || '')); }
 function mediaSrc(m){
   if (m.uri && Native.mediaUrl) { try { const u = Native.mediaUrl(m.uri, m.mime); if (u) return u; } catch(e) {} }
-  if (m.from === 'me' && sentBlobUrls[m.id]) return sentBlobUrls[m.id];
+  if ((m.from === 'me' || (me && m.from === me.num)) && sentBlobUrls[m.id]) return sentBlobUrls[m.id];
   return '';
 }
 const mv = { num:null, list:[], i:0, z:{ s:1, x:0, y:0 } };
 function viewable(m){ return isMedia(m) && (mediaSrc(m) || (/^image\//.test(m.mime) && m.thumb)); }
-function openViewer(num, id){
-  const list = getMsgs(num).filter(viewable);
+function openViewer(num, id, src){
+  const list = (src || getMsgs(num)).filter(viewable);
   const i = list.findIndex(x=>x.id === id); if (i < 0) return false;
   Object.assign(mv, { num, list, i });
   $('mv').classList.add('on');
@@ -2169,7 +2233,7 @@ function renderViewer(){
   else if (src) html = '<video id="mvVid" src="' + esc(src) + '" controls autoplay playsinline></video>';
   else html = '<div class="mvnote">Video yahan nahi chal sakti</div>';
   $('mvBody').innerHTML = html;
-  $('mvName').textContent = (m.from === 'me' ? 'Aap' : contactName(mv.num)) + ' · ' + fmtTime(m.ts);
+  $('mvName').textContent = (m.from === 'me' || (me && m.from === me.num) ? 'Aap' : contactName(m.from === 'them' ? mv.num : m.from)) + ' · ' + fmtTime(m.ts);
   $('mvExt').style.display = m.uri ? '' : 'none';
   $('mvPrev').style.visibility = mv.i > 0 ? 'visible' : 'hidden';
   $('mvNext').style.visibility = mv.i < mv.list.length - 1 ? 'visible' : 'hidden';
@@ -2210,22 +2274,24 @@ function zoomable(im){
   };
 }
 
-function fileBubble(m){
-  const mine = m.from === 'me', img = /^image\//.test(m.mime) && !m.doc;
-  const done = mine ? (m.ok || m.pcSent) : !!m.uri;
-  const lost = mine && !m.ok && !m.pcSent && !outFiles[m.id] && !m.fail;    // app band hui: file yaad nahi
+function fileBubble(m, g){
+  const mine = m.from === 'me' || (!!g && !!me && m.from === me.num), img = /^image\//.test(m.mime) && !m.doc;
+  const done = mine ? (g ? !!m.pcSent : (m.ok || m.pcSent)) : !!m.uri;
+  const lost = mine && !m.pcSent && (g ? !gOut[m.id] : (!m.ok && !outFiles[m.id])) && !m.fail;    // app band hui: file yaad nahi
   const waitDl = !mine && m.pc && !m.uri && !pcDown[m.id];
   let state = '';
   if (m.fail || lost) state = '❌ nahi gaya' + (mine ? ' — dobara bhejein' : '') + ' · ';
   else if (waitDl) state = '<b class="dl">⬇️ Download dabaiye</b> · ';
-  else if (mine && m.pcSent && !m.ok) state = '📦 PC par rakhi (saamne wala le sakta hai) · ';
-  else if (!done) state = (mine && m.via === 'pc' ? '📦 PC tak ' : '') + '<span class="fpct">' + (m.prog ? m.prog + '% · ' : (mine ? '🕓 ' : '⬇️ ')) + '</span>';
-  const busy = !done && !m.fail && !lost && !waitDl;
-  const body = img && m.thumb ? '<div class="fwrap"><img class="fthumb" src="' + esc(safeThumb(m.thumb)) + '">' + (busy ? '<div class="fov"><span class="fpct">' + (m.prog ? m.prog + '% · ' : '…') + '</span></div>' : waitDl ? '<div class="fov">⬇️</div>' : '') + '</div>'
+  else if (mine && m.pcSent && !m.ok && !g) state = '📦 Server par rakhi (saamne wala le sakta hai) · ';
+  else if (!done) state = (mine && m.via === 'pc' ? '📦 Server tak ' : '') + '<span class="fpct">' + (m.prog ? m.prog + '% · ' : (mine ? '🕓 ' : '⬇️ ')) + '</span>';
+  const busy = !done && !m.fail && !lost && !waitDl, th = img ? safeThumb(m.thumb) : '';
+  const body = th ? '<div class="fwrap"><img class="fthumb" src="' + esc(th) + '">' + (busy ? '<div class="fov"><span class="fpct">' + (m.prog ? m.prog + '% · ' : '…') + '</span></div>' : waitDl ? '<div class="fov">⬇️</div>' : '') + '</div>'
     : '<div class="fcard">' + (/^video\//.test(m.mime) ? '🎬' : /^image\//.test(m.mime) ? '🖼️' : m.mime === 'application/pdf' ? '📄' : '📁') + ' <b>' + esc(m.name) + '</b><br><small>' + fmtSize(m.size) + (m.doc && /^image\//.test(m.mime) ? ' · original' : '') + (done && !mine ? (/^(image|video)\//.test(m.mime) ? ' · ▶ dabakar dekhein' : ' · dabakar kholein') : '') + '</small></div>';
   const bar = (!done && !m.fail && !lost && !waitDl) ? '<div class="fbar"><i style="width:' + (m.prog || 0) + '%"></i></div>' : '';
-  return '<div class="msg file ' + (mine ? 'me' : 'them') + '" data-fid="' + esc(m.id) + '" data-mid="' + esc(m.id) + '">' + body + bar
-    + '<div class="t">' + state + fmtTime(m.ts) + (mine && (m.ok || m.pcSent) ? ' ' + tick(m) : '') + '</div></div>';
+  const who = g && !mine ? '<div class="gname">' + esc(contactName(m.from)) + '</div>' : '';
+  const tk = !mine ? '' : g ? (m.pcSent ? ' ' + gTick(g, m) : '') : (m.ok || m.pcSent) ? ' ' + tick(m) : '';
+  return '<div class="msg file ' + (mine ? 'me' : 'them') + '" data-fid="' + esc(m.id) + '" data-mid="' + esc(m.id) + '">' + who + body + bar
+    + '<div class="t">' + state + fmtTime(m.ts) + tk + '</div></div>';
 }
 
 // ================= Blue tick (padh liya) =================
@@ -2338,8 +2404,10 @@ function sendGroupStuff(num){
     if (g.leavePend && num === g.admin) send(num, { t:'gleave', gid: g.id });
     if (!member || g.left || g.removed) return;
     const list = gMsgs(g.id);
-    list.filter(m=>m.from === me.num && !m.deleted && !(m.ok || {})[num]).slice(-100)
-        .forEach(m=>send(num, { t:'gmsg', gid: g.id, id: m.id, text: m.text, ts: m.ts, name: me.name }));
+    list.filter(m=>m.from === me.num && !m.deleted && !(m.ok || {})[num] && (m.kind !== 'file' || (m.pcSent && m.gk))).slice(-100)
+        .forEach(m=>send(num, m.kind === 'file'
+          ? { t:'gmsg', gid: g.id, id: m.id, ts: m.ts, name: me.name, f: { name: m.name, mime: m.mime, size: m.size, thumb: m.thumb || '', doc: !!m.doc, k: m.gk, p: m.gp } }
+          : { t:'gmsg', gid: g.id, id: m.id, text: m.text, ts: m.ts, name: me.name }));
     list.filter(m=>m.from === me.num && m.deleted && (m.delPend || []).includes(num)).forEach(m=>send(num, { t:'gdel', gid: g.id, id: m.id }));
     const seenIds = list.filter(m=>m.from === num && m.seenAt && !m.seenSent).map(m=>m.id);
     if (seenIds.length && send(num, { t:'gseen', gid: g.id, ids: seenIds })) { list.forEach(m=>{ if (seenIds.includes(m.id)) m.seenSent = true; }); saveGMsgs(g.id, list); }
@@ -2394,7 +2462,17 @@ function onGroupData(num, d){
       const g = groups[d.gid];
       if (!g || g.removed || g.left || !g.members.includes(num) || typeof d.id !== 'string') return;   // jaankari nahi / member nahi: chhodo (dobara aayega)
       const list = gMsgs(g.id);
-      if (!list.find(m=>m.id === d.id)) {
+      if (!list.find(m=>m.id === d.id) && d.f) {         // group me file aayi (chaabi P2P, file server par)
+        const f = d.f, mime = String(f.mime || ''), kind = fileKind(mime), size = +f.size || 0;
+        if (kind !== 'other' && size > 0 && size <= (LIMIT[kind] || 0) + 1024 && /^[A-Za-z0-9_-]{43}$/.test(f.k || '') && /^[A-Za-z0-9_-]{11}$/.test(f.p || '')) {
+          const fm = { id:d.id, from:num, kind:'file', name: String(f.name || 'file').slice(0, 80), mime, size, thumb: safeThumb(f.thumb), doc: !!f.doc, ts: d.ts || Date.now(), prog:0, uri:'', pc:{ k:f.k, p:f.p } };
+          list.push(fm); saveGMsgs(g.id, list);
+          const viewing = current === 'chatScreen' && chatGroup === g.id && Native.isForeground();
+          touchGroup(g.id, contactName(num) + ': ' + fileLabel(fm), !viewing);
+          if (!viewing) Native.notifyMessage(num, g.name, contactName(num) + ': ' + fileLabel(fm));
+          if (chatGroup === g.id && current === 'chatScreen') { renderMsgs(); markGroupSeen(g.id); }
+        }
+      } else if (!list.find(m=>m.id === d.id)) {
         const text = String(d.text || '').slice(0, 4000);
         list.push({ id:d.id, from:num, text, ts: d.ts || Date.now() }); saveGMsgs(g.id, list);
         const viewing = current === 'chatScreen' && chatGroup === g.id && Native.isForeground();
@@ -2433,6 +2511,107 @@ function onGroupData(num, d){
   }
 }
 
+// ----- Group me file: ek baar server par (taala-band), chaabi har member ko P2P, sab le lein to server se mit jaati -----
+const gOut = {};          // id -> { gid, blob } (upload chal raha)
+function gSetProg(gid, id, pct){
+  const el = document.querySelector ? document.querySelector('[data-fid="' + id + '"]') : null;
+  if (el) { const bar = el.querySelector('.fbar i'); if (bar) bar.style.width = pct + '%'; (el.querySelectorAll ? Array.from(el.querySelectorAll('.fpct')) : []).forEach(t=>{ t.textContent = pct + '% · '; }); }
+  if (Date.now() - progSave > 1500 || pct >= 100) { progSave = Date.now(); const list = gMsgs(gid), m = list.find(x=>x.id === id); if (m) { m.prog = pct; saveGMsgs(gid, list); } }
+}
+function updGFile(gid, id, patch){
+  const list = gMsgs(gid), m = list.find(x=>x.id === id);
+  if (m) { Object.assign(m, patch); saveGMsgs(gid, list); }
+  if (current === 'chatScreen' && chatGroup === gid) renderMsgs();
+  return m;
+}
+async function attachGroupFile(gid, accept, asDoc){
+  const g = groups[gid]; if (!g || g.left || g.removed) return toast('Aap is group me nahi hain');
+  if (!others(g).length) return toast('Group me koi aur member nahi hai');
+  if (!(await relayUrl(true))) return toast('Group me file bhejne ke liye server chalu hona chahiye', 3500);
+  const pr = await prepFile(accept, asDoc); if (!pr) return;
+  const { blob, name, thumb, outMime } = pr;
+  const m = { id: uid() + uid(), from: me.num, kind:'file', name, mime: outMime, size: blob.size, thumb, ts: Date.now(), ok:{}, seen:{}, via:'pc', prog:0, doc: !!asDoc };
+  const list = gMsgs(gid); list.push(m); saveGMsgs(gid, list);
+  gOut[m.id] = { gid, blob };
+  if (isMedia(m)) { try { sentBlobUrls[m.id] = URL.createObjectURL(blob); } catch(e) {} }
+  touchGroup(gid, 'Aap: ' + fileLabel(m));
+  if (current === 'chatScreen' && chatGroup === gid) renderMsgs();
+  let key = null;
+  try { key = await uploadGroupFile(m.id, blob, others(g), p=>gSetProg(gid, m.id, p)); } catch(e) {}
+  if (!gOut[m.id]) return;                                   // beech me hata di
+  delete gOut[m.id];
+  if (!key) { updGFile(gid, m.id, { fail: true }); return toast('File server tak nahi gayi — internet check karke dobara bhejein', 3500); }
+  updGFile(gid, m.id, Object.assign({ pcSent: true, prog: 100 }, key));
+  pushGroup(groups[gid]);
+}
+async function uploadGroupFile(id, blob, members, onProg){
+  const raw = crypto.getRandomValues(new Uint8Array(32)), pre = crypto.getRandomValues(new Uint8Array(8));
+  const fk = await subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt']);
+  const chunks = Math.ceil(blob.size / PCH), base = '/gf/' + id;
+  if (!(await pcFetch('PUT', base + '/meta', JSON.stringify({ members, chunks, csize: PCH + 16, size: blob.size + chunks * 16 }))).ok) return null;
+  let next = 0, sent = 0, fail = false;
+  const work = async ()=>{
+    while (!fail && next < chunks && gOut[id]) {
+      const i = next++;
+      const ct = new Uint8Array(await subtle.encrypt({ name:'AES-GCM', iv: ivOf(pre, i) }, fk, new Uint8Array(await blob.slice(i * PCH, (i + 1) * PCH).arrayBuffer())));
+      let ok = false;
+      for (let t = 0; t < 3 && !ok && gOut[id]; t++) { try { ok = (await pcFetch('PUT', base + '/c/' + i, ct, 90000)).ok; } catch(e) {} if (!ok) await sleep(1500); }
+      if (!ok) { fail = true; break; }
+      sent++; if (onProg) onProg(Math.floor(sent * 100 / chunks));
+    }
+  };
+  await Promise.all([work(), work(), work()]);
+  const drop = ()=>pcFetch('DELETE', base).catch(()=>{});
+  if (fail || !gOut[id]) { drop(); return null; }
+  try { if (!(await pcFetch('POST', base + '/done')).ok) { drop(); return null; } } catch(e) { drop(); return null; }
+  return { gk: b64u.enc(raw), gp: b64u.enc(pre) };
+}
+/** Server se taala-band tukde laao, phone par kholo, Gallery me save (chat aur group dono) */
+async function pcPull(id, size, k, p, path, onProg){
+  const pre = b64u.dec(p), fk = await subtle.importKey('raw', b64u.dec(k), 'AES-GCM', false, ['decrypt']);
+  const N = Math.ceil(size / PCH);
+  if (!Native.fileOpen2 || !Native.fileOpen2(id, size)) return 'jagah';
+  let next = 0, got = 0, fail = '';
+  const work = async ()=>{
+    while (!fail && next < N) {
+      const i = next++, want = i === N - 1 ? size - i * PCH : PCH;
+      let ok = false;
+      for (let t = 0; t < 3 && !ok && !fail; t++) {
+        try {
+          const r = await pcFetch('GET', path + '/c/' + i, null, 90000);
+          if (r.status === 404 || r.status === 403) { fail = 'gone'; break; }
+          if (r.ok) {
+            const pt = new Uint8Array(await subtle.decrypt({ name:'AES-GCM', iv: ivOf(pre, i) }, fk, new Uint8Array(await r.arrayBuffer())));
+            if (pt.length === want && Native.fileWriteAt(id, i * PCH, toB64(pt))) ok = true;
+          }
+        } catch(e) {}
+        if (!ok && !fail) await sleep(1500);
+      }
+      if (!ok) { fail = fail || 'net'; break; }
+      got++; if (onProg) onProg(Math.floor(got * 100 / N));
+    }
+  };
+  await Promise.all([work(), work(), work()]);
+  if (fail) { if (Native.fileAbort) Native.fileAbort(id); return fail; }
+  return '';
+}
+async function downloadGroupFile(gid, id){
+  if (pcDown[id]) return;
+  const m = gMsgs(gid).find(x=>x.id === id); if (!m || !m.pc || m.uri) return;
+  if (!(await relayUrl(true))) return toast('Server abhi band hai — chalu hone par download hoga', 3500);
+  pcDown[id] = true; updGFile(gid, id, { prog: 0 });
+  let fail = '';
+  try { fail = await pcPull(id, m.size, m.pc.k, m.pc.p, '/gf/' + id, p=>gSetProg(gid, id, p)); } catch(e) { fail = 'err'; if (Native.fileAbort) Native.fileAbort(id); }
+  if (!fail) {
+    const uri = Native.fileFinish(id, m.name, m.mime);
+    if (uri) { delete pcDown[id]; updGFile(gid, id, { uri, prog: 100, pc: null }); pcFetch('DELETE', '/gf/' + id).catch(()=>{}); return; }
+    fail = 'save';
+  }
+  delete pcDown[id];
+  if (fail === 'gone') { updGFile(gid, id, { pc: null, fail: true }); toast('Ye file ab server par nahi hai (hata di gayi / 7 din purani)', 3500); }
+  else { updGFile(gid, id, { prog: 0 }); toast('Download ruk gaya — dobara dabaiye', 3000); }
+}
+
 function markGroupSeen(gid){
   if (!Native.isForeground() || current !== 'chatScreen' || chatGroup !== gid) return;
   const list = gMsgs(gid); const senders = new Set();
@@ -2453,10 +2632,11 @@ function openGroup(gid){
   const g = groups[gid]; if (!g) return;
   chatGroup = gid; chatWith = null;
   g.unread = 0; saveGroups(); renderRecent();
-  $('chatTitle').textContent = '👥 ' + g.name;
+  $('chatTitle').textContent = g.name;
   const av = $('chatAvatar'); av.classList.remove('dp'); av.style.backgroundImage = ''; av.textContent = '👥';
   $('chatSub').textContent = g.removed ? 'Aap is group me nahi hain' : g.left ? 'Aapne group chhod diya' : g.members.map(n=>n === me.num ? 'Aap' : contactName(n)).slice(0, 5).join(', ') + (g.members.length > 5 ? '…' : '');
-  ['chatVoice', 'chatVideo', 'attachBtn'].forEach(id=>$(id).style.display = 'none');
+  ['chatVoice', 'chatVideo'].forEach(id=>$(id).style.display = 'none');
+  $('attachBtn').style.display = g.left || g.removed ? 'none' : '';
   $('chatInfo').style.display = '';
   show('chatScreen');
   renderMsgs();
@@ -2469,19 +2649,33 @@ function renderGroupMsgs(){
     if (m.from === 'sys') return '<div class="sys">' + esc(m.text) + ' · ' + fmtTime(m.ts) + '</div>';
     const mine = m.from === me.num;
     if (m.deleted) return '<div class="msg del ' + (mine ? 'me' : 'them') + '" data-mid="' + esc(m.id) + '">🚫 ' + (mine ? 'Aapne ye message hata diya' : 'Ye message hata diya gaya') + '<div class="t">' + fmtTime(m.ts) + '</div></div>';
+    if (m.kind === 'file') return fileBubble(m, g);
     return '<div class="msg ' + (mine ? 'me' : 'them') + '" data-mid="' + esc(m.id) + '">' + (mine ? '' : '<div class="gname">' + esc(contactName(m.from)) + '</div>') + esc(m.text)
       + '<div class="t">' + fmtTime(m.ts) + (mine ? ' ' + gTick(g, m) : '') + '</div></div>';
   }).join('') : '<div class="sys">Group me pehla message bhejein 👋</div>';
   el.scrollTop = el.scrollHeight;
+  el.onclick = e=>{
+    if (el._longPressed && Date.now() - el._longPressed < 800) return;
+    const b = e.target && e.target.closest ? e.target.closest('[data-fid]') : null; if (!b) return;
+    const gid = chatGroup, m = gMsgs(gid).find(x=>x.id === b.dataset.fid); if (!m) return;
+    if (viewable(m) && (m.uri || m.from === me.num) && openViewer(null, m.id, gMsgs(gid))) return;
+    if (m.uri && Native.fileOpen) Native.fileOpen(m.uri, m.mime);
+    else if (m.from !== me.num && m.pc) downloadGroupFile(gid, m.id);
+  };
 }
 
 function groupMenu(id){
   const g = groups[chatGroup]; const m = gMsgs(chatGroup).find(x=>x.id === id); if (!g || !m || m.from === 'sys') return;
   const btns = [];
   if (!m.deleted && m.text) btns.push({ label:'📋 Copy', cls:'ghost', fn:()=>{ try { navigator.clipboard.writeText(m.text); toast('Copy ho gaya'); } catch(e) {} } });
-  btns.push({ label:'🗑️ Mere liye hatao', cls:'ghost', fn:()=>{ saveGMsgs(g.id, gMsgs(g.id).filter(x=>x.id !== id)); renderMsgs(); } });
+  btns.push({ label:'🗑️ Mere liye hatao', cls:'ghost', fn:()=>{
+    if (m.kind === 'file' && m.from !== me.num && m.pc) pcFetch('DELETE', '/gf/' + id).catch(()=>{});   // nahi chahiye: server ko batao
+    if (gOut[id]) delete gOut[id];
+    saveGMsgs(g.id, gMsgs(g.id).filter(x=>x.id !== id)); renderMsgs(); } });
   if (m.from === me.num && !m.deleted && Date.now() - m.ts < DEL_ALL_MS && !g.left && !g.removed) btns.push({ label:'🚫 Sabke liye hatao', cls:'red', fn:()=>{
-    const list = gMsgs(g.id), x = list.find(y=>y.id === id); Object.assign(x, { deleted:true, text:'', delPend: others(g) }); saveGMsgs(g.id, list); renderMsgs(); pushGroup(g); toast('Sabke liye hata diya');
+    const list = gMsgs(g.id), x = list.find(y=>y.id === id);
+    if (x.kind === 'file') { if (gOut[id]) delete gOut[id]; pcFetch('DELETE', '/gf/' + id).catch(()=>{}); }
+    Object.assign(x, { deleted:true, text:'', delPend: others(g) }); saveGMsgs(g.id, list); renderMsgs(); pushGroup(g); toast('Sabke liye hata diya');
   } });
   btns.push({ label:'Band karein', cls:'ghost', fn:()=>{} });
   modal('Message', m.deleted ? 'Hata hua message' : String(m.text).slice(0, 80), btns);
@@ -2568,7 +2762,7 @@ function webPageUrl(){ const m = /githubusercontent\.com\/([^/]+)\/([^/]+)\//.ex
 function parseWebCode(code){ const c = String(code || '').toLowerCase().replace(/[^a-z0-9]/g, ''); return c.length === 16 ? { pid: 'mcweb-' + c.slice(0, 8), key: c.slice(8) } : null; }
 function linkWeb(code){
   const l = parseWebCode(code); if (!l) return 'Code 16 akshar ka hota hai (jaise ABCD-EFGH-JKLM-NPQR)';
-  if (!webLinks.find(x=>x.pid === l.pid) && webLinks.length >= 3) return 'Zyada se zyada 3 PC jod sakte hain. Pehle koi hatao.';
+  if (!webLinks.find(x=>x.pid === l.pid) && webLinks.length >= 3) return 'Zyada se zyada 3 Computer jod sakte hain. Pehle koi hatao.';
   webLinks = webLinks.filter(x=>x.pid !== l.pid).concat([Object.assign(l, { at: Date.now() })]);
   store.set('webLinks', webLinks); connectWeb(l); renderWebLinks(); return '';
 }
@@ -2637,7 +2831,7 @@ function renderWebLinks(){
   const el = $('webList'); if (!el) return;
   if ($('webUrl') && webPageUrl()) $('webUrl').textContent = webPageUrl().replace('https://', '');
   el.innerHTML = webLinks.map(l=>{ const c = webConns[l.pid], on = c && c.open && c._ok;
-    return '<div class="item" data-num="' + esc(l.pid) + '"><div class="avatar grp">💻</div><div class="meta"><div class="name">PC (' + esc(l.pid.slice(6, 10).toUpperCase()) + '…)</div><div class="last">' + (on ? '🟢 Juda hua' : '⚪ Abhi juda nahi') + ' · ' + fmtTime(l.at) + '</div></div><button class="mini" data-act="unlink" style="color:var(--red)">✖</button></div>'; }).join('');
+    return '<div class="item" data-num="' + esc(l.pid) + '"><div class="avatar grp">💻</div><div class="meta"><div class="name">Computer (' + esc(l.pid.slice(6, 10).toUpperCase()) + '…)</div><div class="last">' + (on ? '🟢 Juda hua' : '⚪ Abhi juda nahi') + ' · ' + fmtTime(l.at) + '</div></div><button class="mini" data-act="unlink" style="color:var(--red)">✖</button></div>'; }).join('');
   el.querySelectorAll('.item').forEach(it=>it.onclick=e=>{ if (e.target && e.target.dataset && e.target.dataset.act === 'unlink') unlinkWeb(it.dataset.num); });
 }
 setInterval(()=>{ if (me && peer && peer.open && !mustUpd) webLinks.forEach(connectWeb); }, 20000);
@@ -2918,10 +3112,14 @@ $('mvNext').onclick = ()=>viewerStep(1);
 $('mvExt').onclick = ()=>{ const m = mv.list[mv.i]; if (m && m.uri && Native.fileOpen) Native.fileOpen(m.uri, m.mime); };
 $('attachBtn').onclick = attachMenu;
 $('dpSetBtn').onclick = setMyDp;
-$('webLinkBtn').onclick = ()=>{ const err = linkWeb($('webCode').value); $('webMsg').style.color = err ? 'var(--red)' : ''; $('webMsg').textContent = err || 'Jod rahe hain… PC par chat dikhne lagegi.'; if (!err) $('webCode').value = ''; };
+$('webLinkBtn').onclick = ()=>{ const err = linkWeb($('webCode').value); $('webMsg').style.color = err ? 'var(--red)' : ''; $('webMsg').textContent = err || 'Jod rahe hain… Computer par chat dikhne lagegi.'; if (!err) $('webCode').value = ''; };
 $('dpDelBtn').onclick = delMyDp;
 $('stTextBtn').onclick = ()=>openStatusEditor('text');
-$('stPhotoBtn').onclick = pickStatusPhoto;
+$('stPhotoBtn').onclick = ()=>pickStatusMedia();
+$('stCamBtn').onclick = ()=>modal('📸 Camera', 'Kya kheenchna hai?', [
+  { label:'📷 Photo', cls:'', fn:()=>pickStatusMedia('image/*,.mccam,.mcstatus') },
+  { label:'🎥 Video (3 min tak, 30-30 sec ke hisse)', cls:'', fn:()=>pickStatusMedia('video/*,.mccam,.mcstatus') },
+  { label:'Band karein', cls:'ghost', fn:()=>{} } ]);
 $('myStatusRow').onclick = ()=>openStatus(me.num);
 $('seBack').onclick = ()=>{ show('homeScreen'); switchTab('tabStatus'); };
 $('sePost').onclick = postStatus;
@@ -3086,7 +3284,7 @@ $('gateCheckBtn').onclick = async ()=>{
   $('gateMsg').textContent = 'Check ho raha hai…';
   try { const u = await fb('users/'+me.num+'.json'); if (u) noteUser(me.num, u); } catch(e) {}
   if (verifiedSet.has(me.num)) { $('gateMsg').textContent = ''; toast('✅ Verify ho gaya!'); boot(); }
-  else $('gateMsg').textContent = 'Abhi verify nahi hua. WhatsApp me message Send hua? PC wala bot chalu hona chahiye. 1 minute baad dobara dabaiye.';
+  else $('gateMsg').textContent = 'Abhi verify nahi hua. WhatsApp me message Send hua? Server wala bot chalu hona chahiye. 1 minute baad dobara dabaiye.';
 };
 $('gateLogoutBtn').onclick = ()=> $('logoutBtn').onclick();
 // ----- Account zinda hai? (admin ne Firebase se hataya/band kiya to turant logout) -----
