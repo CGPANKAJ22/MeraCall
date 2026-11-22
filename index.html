@@ -1104,7 +1104,7 @@ const ST_COLORS = ['#0A7CFF', '#1fb760', '#e8590c', '#ae3ec9', '#e03131', '#1b1f
 let stSeen = store.get('stSeen', {});     // "num/sid" -> 1
 let stFeed = {};                           // num -> [ {sid, type, text, bg, ts, img?} ]
 let stMine = [];
-let seMode = 'text', seBg = ST_COLORS[0], seBlob = null, seImgData = '', seVidData = '', seVidDur = 0;
+let seMode = 'text', seBg = ST_COLORS[0], seBlob = null, seImgData = '', seVidData = '', seVidDur = 0, seVidPc = null;
 function sidNew(){ return (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).toLowerCase(); }
 function timeAgo(ts){ const m = Math.floor((Date.now() - ts) / 60000); return m < 1 ? 'abhi' : m < 60 ? m + ' min pehle' : Math.floor(m/60) + ' ghante pehle'; }
 async function fetchStatus(num){
@@ -1161,6 +1161,7 @@ async function cleanupMine(){
       await fb('statusImg/' + me.num + '/' + sid + '.json', { method:'DELETE' }, true).catch(()=>{});
       await fb('statusVid/' + me.num + '/' + sid + '.json', { method:'DELETE' }, true).catch(()=>{});
       await fb('statusSeen/' + me.num + '/' + sid + '.json', { method:'DELETE' }, true).catch(()=>{});
+      if (d[sid] && d[sid].via === 'pc') pcFetch('DELETE', '/s/' + me.num + '/' + sid).catch(()=>{});
     }
   } catch(e) {}
 }
@@ -1185,7 +1186,7 @@ function openStatusEditor(mode){
   if (!HAS_AUTH || !me) return toast('Status ke liye login zaroori hai');
   if (VERIFY_REQUIRED && !verifiedSet.has(me.num)) return toast('Pehle number verify karein');
   if (stMine.length >= 10) return toast('Ek saath 10 se zyada status nahi. Purana hatayein.');
-  seMode = mode; seBlob = null; seImgData = ''; seVidData = ''; seVidDur = 0;
+  seMode = mode; seBlob = null; seImgData = ''; seVidData = ''; seVidDur = 0; seVidPc = null;
   $('seTitle').textContent = mode === 'text' ? 'Text status' : mode === 'video' ? 'Video status' : 'Photo status';
   $('seText').style.display = mode === 'text' ? '' : 'none';
   $('seImg').style.display = mode === 'photo' ? '' : 'none';
@@ -1282,9 +1283,94 @@ async function pickStatusMedia(){
   } catch(e) { toast('Ye photo nahi khuli'); }
 }
 const pickStatusPhoto = pickStatusMedia;
+// ---- Status video PC daakghar se: poori quality, taala-band, 12 ghante ----
+const ST_PC_MAX = 200 * 1024 * 1024;
+function videoInfo(file){
+  return new Promise(res=>{
+    let url = ''; try { url = URL.createObjectURL(file); } catch(e) { return res(null); }
+    const v = document.createElement('video'); v.preload = 'metadata';
+    let fin = false; const done = o=>{ if (fin) return; fin = true; try { URL.revokeObjectURL(url); } catch(e) {} res(o); };
+    v.onloadedmetadata = ()=>done({ dur: isFinite(v.duration) ? v.duration : 0, w: v.videoWidth, h: v.videoHeight });
+    v.onerror = ()=>done(null);
+    setTimeout(()=>done(null), 15000);
+    v.src = url;
+  });
+}
+async function uploadStatusPc(sid, blob, mime, onProg){
+  if (!(await relayUrl(true))) return null;
+  const raw = crypto.getRandomValues(new Uint8Array(32)), pre = crypto.getRandomValues(new Uint8Array(8));
+  const fk = await subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt']);
+  const chunks = Math.ceil(blob.size / PCH), base = '/s/' + me.num + '/' + sid;
+  const r1 = await pcFetch('PUT', base + '/meta', JSON.stringify({ chunks, csize: PCH + 16, size: blob.size + chunks * 16 }));
+  if (!r1.ok) return null;
+  let next = 0, sent = 0, fail = false;
+  const work = async ()=>{
+    while (!fail && next < chunks) {
+      const i = next++;
+      const ct = new Uint8Array(await subtle.encrypt({ name:'AES-GCM', iv: ivOf(pre, i) }, fk, new Uint8Array(await blob.slice(i * PCH, (i + 1) * PCH).arrayBuffer())));
+      let ok = false;
+      for (let t = 0; t < 3 && !ok; t++) { try { ok = (await pcFetch('PUT', base + '/c/' + i, ct, 90000)).ok; } catch(e) {} if (!ok) await sleep(1500); }
+      if (!ok) { fail = true; break; }
+      sent++; if (onProg) onProg(Math.floor(sent * 100 / chunks));
+    }
+  };
+  await Promise.all([work(), work(), work()]);
+  try { if (fail || !(await pcFetch('POST', base + '/done')).ok) { pcFetch('DELETE', base).catch(()=>{}); return null; } }
+  catch(e) { pcFetch('DELETE', base).catch(()=>{}); return null; }
+  return { via:'pc', vk: b64u.enc(raw), vp: b64u.enc(pre), vch: chunks, vsz: blob.size, vm: mime };
+}
+/** Dekhne wala: PC se tukde laao, phone par taala kholo */
+async function loadPcStatus(num, s, onProg){
+  if (!(await relayUrl())) return '';
+  try {
+    const N = +s.vch, size = +s.vsz;
+    if (!(N > 0 && N <= 200 && size > 0 && size <= ST_PC_MAX)) return '';
+    const fk = await subtle.importKey('raw', b64u.dec(s.vk), 'AES-GCM', false, ['decrypt']), pre = b64u.dec(s.vp);
+    const parts = new Array(N); let next = 0, got = 0, fail = false;
+    const work = async ()=>{
+      while (!fail && next < N) {
+        const i = next++; let ok = false;
+        for (let t = 0; t < 3 && !ok && !fail; t++) {
+          try {
+            const r = await pcFetch('GET', '/s/' + num + '/' + s.sid + '/c/' + i, null, 90000);
+            if (r.status === 404) { fail = true; break; }
+            if (r.ok) { parts[i] = new Uint8Array(await subtle.decrypt({ name:'AES-GCM', iv: ivOf(pre, i) }, fk, new Uint8Array(await r.arrayBuffer()))); ok = true; }
+          } catch(e) {}
+          if (!ok && !fail) await sleep(1000);
+        }
+        if (!ok) { fail = true; break; }
+        got++; if (onProg) onProg(Math.floor(got * 100 / N));
+      }
+    };
+    await Promise.all([work(), work(), work()]);
+    if (fail) return '';
+    const url = URL.createObjectURL(new Blob(parts, { type: /^video\/[a-z0-9.+-]+$/.test(s.vm || '') ? s.vm : 'video/mp4' }));
+    const keys = Object.keys(vidCache);                     // memory bachao: 3 video tak yaad
+    if (keys.length >= 3) { try { URL.revokeObjectURL(vidCache[keys[0]]); } catch(e) {} delete vidCache[keys[0]]; }
+    vidCache[num + '/' + s.sid] = url;
+    return url;
+  } catch(e) { return ''; }
+}
 async function statusVideo(f, lv){
   if (f.size > 300*1024*1024) return toast('Video bahut badi hai');
-  toast('Video taiyaar ho rahi hai… (30 sec tak)', 2500);
+  if (await relayUrl(true)) {                            // PC chalu: poori quality
+    toast('Video taiyaar ho rahi hai… (poori quality)', 2000);
+    try {
+      const info = await videoInfo(f);
+      let blob = f, mime = /^video\/(mp4|webm|3gpp)$/.test(f.type || '') ? f.type : 'video/mp4', dur = (info && info.dur) || 30;
+      if (!info || !info.dur || info.dur > 30.5) {         // 30 sec se lambi: pehle 30 sec, oonchi quality (1080p)
+        const r = await shrinkVideo(f, [1080, 6000000], p=>toast('Pehle 30 second le rahe hain… ' + p + '%', 1500));
+        blob = r.blob; mime = 'video/webm'; dur = r.dur;
+      }
+      if (blob.size > ST_PC_MAX) return toast('Video 200 MB se badi hai — chhoti chuniye', 3500);
+      openStatusEditor('video');
+      seVidPc = { blob, mime, dur: Math.round(dur * 10) / 10 }; seVidDur = seVidPc.dur;
+      try { $('seVid').src = URL.createObjectURL(blob); } catch(e) {}
+      toast('✅ Poori quality (' + Math.round(blob.size / 1024 / 102.4) / 10 + ' MB) — PC se jayegi', 2500);
+      return;
+    } catch(e) { /* PC wala nahi bana: neeche halki wali */ }
+  }
+  toast('PC band hai — video halki hokar lagegi (30 sec tak)', 2500);
   try {
     const r = await shrinkVideo(f, ST_VIDEO_Q[lv], p=>toast('Video taiyaar ho rahi hai… ' + p + '%', 1500));
     if (r.blob.size > ST_VID_MAX) return toast('Video abhi bhi badi hai — chhoti video chuniye', 3500);
@@ -1304,9 +1390,10 @@ async function postStatus(){
     const t = $('seText').value.trim(); if (!t) return toast('Kuch likhiye');
     rec.text = t.slice(0, 700); rec.bg = seBg;
   } else if (seMode === 'video') {
-    if (!seVidData) return toast('Video chuniye');
+    if (!seVidData && !seVidPc) return toast('Video chuniye');
     const cap = $('seCap').value.trim(); if (cap) rec.text = cap.slice(0, 300);
-    rec.sz = Math.round(seVidData.length * 0.75); rec.dur = seVidDur || 30;
+    rec.dur = seVidDur || 30;
+    if (!seVidPc) rec.sz = Math.round(seVidData.length * 0.75);
   } else {
     if (!seImgData) return toast('Photo chuniye');
     const cap = $('seCap').value.trim(); if (cap) rec.text = cap.slice(0, 300);
@@ -1314,9 +1401,15 @@ async function postStatus(){
   }
   $('sePost').disabled = true;
   if (seMode === 'video') toast('Video status upload ho raha hai…', 4000);
+  if (seMode === 'video' && seVidPc) {
+    let up = null;
+    try { up = await uploadStatusPc(sid, seVidPc.blob, seVidPc.mime, p=>toast('📦 Status PC tak… ' + p + '%', 1500)); } catch(e) {}
+    if (!up) { $('sePost').disabled = false; return toast('Video PC tak nahi gayi — PC / internet check karke dobara dabaiye', 3500); }
+    Object.assign(rec, up);
+  }
   try {
     if (seMode === 'photo') await fb('statusImg/' + me.num + '/' + sid + '.json', { method:'PUT', body: JSON.stringify(seImgData) }, true);
-    if (seMode === 'video') await fbBig('statusVid/' + me.num + '/' + sid + '.json', { method:'PUT', body: JSON.stringify(seVidData) }, true);
+    if (seMode === 'video' && !seVidPc) await fbBig('statusVid/' + me.num + '/' + sid + '.json', { method:'PUT', body: JSON.stringify(seVidData) }, true);
     try { $('seVid').pause && $('seVid').pause(); } catch(e) {}
     await fb('status/' + me.num + '/' + sid + '.json', { method:'PUT', body: JSON.stringify(rec) }, true);
     toast('✅ Status lag gaya');
@@ -1368,9 +1461,10 @@ async function showStatusItem(){
     body.innerHTML = '<div class="empty" style="color:#fff">Video aa rahi hai…</div>';
     const key = sv.num + '/' + s.sid;
     let src = vidCache[key];
-    if (!src) { let d = ''; try { d = await fbBig('statusVid/' + key + '.json'); } catch(e) {} if (typeof d === 'string') { src = dataUrlToObjUrl(d); if (src) vidCache[key] = src; } }
+    if (!src && s.via === 'pc') src = await loadPcStatus(sv.num, s, p=>{ if (sv.list[sv.i] === s) body.innerHTML = '<div class="empty" style="color:#fff">Video aa rahi hai… ' + p + '%</div>'; });
+    else if (!src) { let d = ''; try { d = await fbBig('statusVid/' + key + '.json'); } catch(e) {} if (typeof d === 'string') { src = dataUrlToObjUrl(d); if (src) vidCache[key] = src; } }
     if (sv.list[sv.i] !== s) return;
-    body.innerHTML = (src ? '<video src="' + esc(src) + '" autoplay playsinline></video>' : '<div class="empty" style="color:#fff">Video nahi khuli</div>') + (s.text ? '<div class="scap">' + esc(s.text) + '</div>' : '');
+    body.innerHTML = (src ? '<video src="' + esc(src) + '" autoplay playsinline></video>' : '<div class="empty" style="color:#fff">' + (s.via === 'pc' ? 'PC band hai — ye video abhi nahi chal sakti' : 'Video nahi khuli') + '</div>') + (s.text ? '<div class="scap">' + esc(s.text) + '</div>' : '');
     vid = body.querySelector ? body.querySelector('video') : null;
   } else {
     body.style.background = '#000';
@@ -1427,6 +1521,7 @@ async function deleteMyStatus(){
     await fb('statusImg/' + me.num + '/' + s.sid + '.json', { method:'DELETE' }, true).catch(()=>{});
     await fb('statusVid/' + me.num + '/' + s.sid + '.json', { method:'DELETE' }, true).catch(()=>{});
     await fb('statusSeen/' + me.num + '/' + s.sid + '.json', { method:'DELETE' }, true).catch(()=>{});
+    if (s.via === 'pc') pcFetch('DELETE', '/s/' + me.num + '/' + s.sid).catch(()=>{});
   } catch(e) { return toast('Nahi hata. Internet check karein.'); }
   stMine = stMine.filter(x=>x.sid !== s.sid); toast('Status hata diya'); closeStatus();
 }
