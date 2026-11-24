@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>MeraPrint — Host par ja rahe hain</title>
+<style>
+  body { margin:0; font:16px/1.5 system-ui,"Segoe UI",Roboto,sans-serif; background:#f2f4f8; color:#111827; display:grid; place-items:center; min-height:100vh; }
+  .card { background:#fff; border:1px solid #e5e7eb; border-radius:16px; padding:28px; max-width:440px; width:90%; text-align:center; }
+  h1 { font-size:20px; margin:8px 0; } .mute { color:#6b7280; font-size:14px; }
+  a.btn { display:block; margin-top:10px; padding:12px; border-radius:10px; background:#0a7cff; color:#fff; text-decoration:none; font-weight:600; }
+  a.alt { background:#fff; color:#0a7cff; border:1px solid #0a7cff; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div style="font-size:40px">🖨️</div>
+  <h1>MeraPrint</h1>
+  <div id="msg" class="mute">Host PC ka abhi ka pata dhoondh rahe hain...</div>
+  <div id="links"></div>
+</div>
+<script>
+// Pakka link: https://<user>.github.io/<repo>/meraprint/#HOSTID  ->  Host ka abhi ka internet pata (trycloudflare, har restart par badalta hai)
+(async function () {
+  const id = decodeURIComponent(location.hash.slice(1) || new URLSearchParams(location.search).get('id') || '').trim().toUpperCase();
+  const msg = document.getElementById('msg'), links = document.getElementById('links');
+  if (!/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(id)) { msg.textContent = 'Link me Host ID nahi hai (…/meraprint/#ABCD-EF23-GH45).'; return; }
+  const m = /^([^.]+)\.github\.io$/.exec(location.hostname), repo = m ? m[1] + '/' + location.pathname.split('/')[1] : 'CGPANKAJ22/MeraCall';
+  let j = null;
+  try { const r = await fetch('https://api.github.com/repos/' + repo + '/contents/meraprint/' + id + '.json', { headers: { Accept: 'application/vnd.github.raw' }, cache: 'no-store' }); if (r.ok) j = await r.json(); } catch (e) {}
+  if (!j) try { const r = await fetch('https://raw.githubusercontent.com/' + repo + '/HEAD/meraprint/' + id + '.json?t=' + Date.now()); if (r.ok) j = await r.json(); } catch (e) {}
+  if (!j) { msg.textContent = 'Is Host ka pata nahi mila. Host PC par START-HOST.bat chal raha hai?'; return; }
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const age = Math.round((Date.now() - (j.ts || 0)) / 60000);
+  if (j.url) {
+    msg.innerHTML = '<b>' + esc(j.name || 'Host') + '</b> par le ja rahe hain...';
+    links.innerHTML = '<a class="btn" href="' + esc(j.url) + '">Turant kholo</a>' +
+      (j.lan || []).map(u => '<a class="btn alt" href="' + esc(u) + '">Same WiFi par: ' + esc(u.replace('http://', '')) + '</a>').join('');
+    setTimeout(() => location.replace(j.url), 1200);
+  } else {
+    msg.textContent = 'Host abhi internet par nahi hai (' + age + ' min pehle tak tha). Same WiFi par ho to:';
+    links.innerHTML = (j.lan || []).map(u => '<a class="btn alt" href="' + esc(u) + '">' + esc(u) + '</a>').join('');
+  }
+})();
+</script>
+</body>
+</html>
