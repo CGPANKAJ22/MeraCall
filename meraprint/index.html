@@ -33,6 +33,16 @@
   if (!j) { msg.textContent = 'Is Host ka pata nahi mila. Host PC par START-HOST.bat chal raha hai?'; return; }
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const age = Math.round((Date.now() - (j.ts || 0)) / 60000);
+  // link zinda hai? (mara ho to Cloudflare ka error dikhane ki jagah intezaar + dobara koshish)
+  let alive = false;
+  if (j.url) try { const c = new AbortController(); setTimeout(() => c.abort(), 10000); const r = await fetch(j.url + '/api/ping', { signal: c.signal, cache: 'no-store' }); const p = await r.json(); alive = p && p.hostId === id; } catch (e) {}
+  if (j.url && !alive) {
+    msg.innerHTML = '⏳ <b>' + esc(j.name || 'Host') + '</b> ka internet link abhi band hai. Host khud naya link bana raha hai (2-5 minute).<br>Ye page apne aap dobara koshish karega...';
+    links.innerHTML = (j.lan || []).map(u => '<a class="btn alt" href="' + esc(u) + '">Same WiFi par ho to: ' + esc(u.replace('http://', '')) + '</a>').join('') +
+      '<div class="mute" style="margin-top:12px">5+ minute ho jaye to Host PC par START-HOST.bat chalu hai ya nahi dekhiye.</div>';
+    setTimeout(() => location.reload(), 30000);
+    return;
+  }
   if (j.url) {
     msg.innerHTML = '<b>' + esc(j.name || 'Host') + '</b> par le ja rahe hain...';
     links.innerHTML = '<a class="btn" href="' + esc(j.url) + '">Turant kholo</a>' +
