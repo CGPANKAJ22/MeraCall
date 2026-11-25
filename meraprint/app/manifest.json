@@ -1,0 +1,93 @@
+{
+ "app": "MeraPrint Host",
+ "version": 1,
+ "date": "2026-11-25T04:06:28.016Z",
+ "note": "123456987",
+ "files": [
+  {
+   "path": "host/host.js",
+   "sha256": "ea726a5df86067cc4f790e6ffb212089854e803f1e7773272fe61e132cfee288",
+   "size": 60863
+  },
+  {
+   "path": "host/helper.cs",
+   "sha256": "1d61d75753f299b8cb5532e3ba9cc96143ba5178738befc3f58010bd78cf5892",
+   "size": 13681
+  },
+  {
+   "path": "host/scan.ps1",
+   "sha256": "aeccc6de801a4919f216333a98b32cffcec0abfdaeb2a8508cff6f539fc04952",
+   "size": 1859
+  },
+  {
+   "path": "host/office2pdf.ps1",
+   "sha256": "a64d9a1be350aaadf1aca9097a79529efe0983d7760ab686cebc839d8c8c8aaf",
+   "size": 1328
+  },
+  {
+   "path": "host/admin.html",
+   "sha256": "a1967b8e2ff5bbdce4bdfa4492a92e16edb51f1dbed51c73f06338e32aa7ece6",
+   "size": 13250
+  },
+  {
+   "path": "web/index.html",
+   "sha256": "8ebb23e3ab02f4ce22316cca9efb612f1ba143369a724660b2f877a6d1f8adf8",
+   "size": 50976
+  },
+  {
+   "path": "web/go.html",
+   "sha256": "8e28316c90be2f70aa9b47763efde63b064762d98aa8004e794457875ad58e10",
+   "size": 4314
+  },
+  {
+   "path": "client-pc/MeraPrintClient.cs",
+   "sha256": "b119da31c891e464d3d1ac6a3a50235cd5ce5d829815c5136880c877ace50272",
+   "size": 74759
+  },
+  {
+   "path": "client-pc/setup-header.bat",
+   "sha256": "05485158e48868f1bfbec9c3ef4f4921ea2d20d23d524ff66e22e05f3614e6d7",
+   "size": 1991
+  },
+  {
+   "path": "client-pc/MeraPrint-Client-Setup.bat",
+   "sha256": "1fbccaa417cb6af5c3d867e1ea9891f6df8e4aeb41e2e9c1a71ef28ad58cb1b0",
+   "size": 77937
+  },
+  {
+   "path": "out/MeraPrint.apk",
+   "sha256": "2ecf3deff8e2f96b4bae839b5d310011d78199d34ee83ef2c07aa866f86231ad",
+   "size": 45666
+  },
+  {
+   "path": "out/MeraPrint.json",
+   "sha256": "7ba76df97def2f97415ee9b222449bad9b7ac1df01b9e6e19a888e4fa603bdcb",
+   "size": 112
+  },
+  {
+   "path": "README.md",
+   "sha256": "1ec7700c7be4d49e5f49bb4973ef662e3f0cd18e95f548836e7974fa96f18fbd",
+   "size": 16119
+  },
+  {
+   "path": "ADD-TO-STARTUP.bat",
+   "sha256": "f79a13a1e6cfaff188753d11dcc691b6f792729e02b801dbaf87dbc64c61b2f0",
+   "size": 565
+  },
+  {
+   "path": "START-HOST.bat",
+   "sha256": "58207cae3ddf8f7e4e7f01dee60b66d21813092efe77c150e6279d3c6b60bd41",
+   "size": 1956
+  },
+  {
+   "path": "public.json",
+   "sha256": "92584085ffe8a060f671bf8d3db5720f76780a157754b879b4bdf22f6e4207f2",
+   "size": 129
+  },
+  {
+   "path": "update-public.pem",
+   "sha256": "a6f3079df951ba6c1c7bb6b88ac3c65a909174e1378ff1cd921dde4b22f122d3",
+   "size": 625
+  }
+ ]
+}

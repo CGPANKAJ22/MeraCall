@@ -1,0 +1,801 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a7cff">
+<title>MeraPrint</title>
+<style>
+  :root { --bg:#f2f4f8; --card:#fff; --ink:#111827; --mute:#6b7280; --line:#e5e7eb; --blue:#0a7cff; --green:#16a34a; --red:#dc2626; --amber:#d97706; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; }
+  body { font:15px/1.45 system-ui,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { position:sticky; top:0; z-index:5; background:var(--blue); color:#fff; display:flex; align-items:center; gap:10px; padding:12px 14px; }
+  header h1 { margin:0; font-size:18px; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  header button { background:rgba(255,255,255,.18); color:#fff; border:0; border-radius:8px; padding:6px 10px; font-size:15px; }
+  main { max-width:720px; margin:0 auto; padding:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:12px; }
+  .mute { color:var(--mute); font-size:13px; }
+  label { display:block; font-size:13px; color:var(--mute); margin:10px 0 4px; }
+  input, select { width:100%; font:inherit; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); }
+  button { font:inherit; cursor:pointer; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:11px 16px; border-radius:10px; border:1px solid var(--line); background:#fff; color:var(--ink); }
+  .btn.p { background:var(--blue); border-color:var(--blue); color:#fff; }
+  .btn.g { background:var(--green); border-color:var(--green); color:#fff; }
+  .btn.w { width:100%; margin-top:14px; font-size:16px; font-weight:600; }
+  .btn:disabled { opacity:.5; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 10px; }
+  .host { display:flex; align-items:center; gap:12px; cursor:pointer; }
+  .host .ic { width:44px; height:44px; border-radius:12px; background:#e8f1ff; display:grid; place-items:center; font-size:22px; }
+  .host .nm { font-weight:600; }
+  .tabs { display:flex; gap:6px; margin-bottom:12px; }
+  .tabs button { flex:1; padding:10px 2px; font-size:14px !important; border-radius:10px; border:1px solid var(--line); background:#fff; font-size:15px; }
+  .tabs button.on { background:var(--blue); color:#fff; border-color:var(--blue); }
+  .tabs button.off { opacity:.45; }
+  .file { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); }
+  .file:last-child { border-bottom:0; }
+  .file .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .file .x { border:0; background:none; font-size:18px; color:var(--mute); }
+  .job { padding:10px 0; border-bottom:1px solid var(--line); }
+  .job:last-child { border-bottom:0; }
+  .bar { height:6px; background:#e5e7eb; border-radius:4px; overflow:hidden; margin-top:6px; }
+  .bar i { display:block; height:100%; background:var(--blue); width:0; transition:width .2s; }
+  .st-done { color:var(--green); } .st-error, .st-denied { color:var(--red); } .st-approval { color:var(--amber); }
+  .note { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:10px; padding:10px 12px; margin-bottom:12px; font-size:14px; }
+  .center { text-align:center; padding:28px 10px; }
+  #scanImg { max-width:100%; border-radius:10px; border:1px solid var(--line); margin-top:10px; display:none; }
+  #toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#111827; color:#fff; padding:10px 16px; border-radius:10px; font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:50; max-width:90vw; text-align:center; }
+  #toast.on { opacity:1; }
+  /* Remote */
+  #remote { position:fixed; inset:0; background:#000; z-index:20; display:none; flex-direction:column; }
+  #remote.on { display:flex; }
+  .rbar { display:flex; gap:6px; padding:6px; background:#111827; overflow-x:auto; flex-shrink:0; }
+  .rbar button, .rbar select { background:#1f2937; color:#fff; border:1px solid #374151; border-radius:8px; padding:7px 10px; font-size:14px; white-space:nowrap; width:auto; }
+  .rbar button.on { background:var(--blue); border-color:var(--blue); }
+  #rWrap { flex:1; overflow:auto; position:relative; display:flex; }
+  #rc { margin:auto; display:block; touch-action:none; outline:none; cursor:default; background:#111; }
+  #rMsg { position:absolute; left:50%; top:40%; transform:translate(-50%,-50%); color:#fff; background:rgba(0,0,0,.75); padding:14px 18px; border-radius:12px; text-align:center; max-width:85%; }
+  #rKb { position:fixed; bottom:0; left:0; width:2px; height:2px; opacity:0; border:0; padding:0; }
+  .keys { display:none; }
+  .keys.on { display:flex; }
+</style>
+</head>
+<body>
+<header>
+  <button id="backBtn" style="display:none" onclick="goBack()">←</button>
+  <h1 id="title">🖨️ MeraPrint</h1>
+  <button id="hdrBtn" style="display:none"></button>
+</header>
+<main>
+  <!-- Hosts -->
+  <section id="vHosts">
+    <div id="shareNote" class="note" style="display:none"></div>
+    <div id="hostList"></div>
+    <button class="btn p w" onclick="showAdd()">➕ Naya PC jodo</button>
+    <p class="mute center">Host PC par <b>START-HOST.bat</b> chalaiye. Wahan dikhne wala <b>Host ID</b> aur <b>PIN</b> yahan daaliye.</p>
+  </section>
+
+  <!-- Add -->
+  <section id="vAdd" style="display:none">
+    <div class="card">
+      <label>Host ID (jaise ABCD-EF23-GH45) ya PC ka pata</label>
+      <input id="aAddr" autocomplete="off" autocapitalize="characters" placeholder="ABCD-EF23-GH45  ya  192.168.1.5">
+      <label>Login ID <span class="mute">(Host wale ne diya)</span></label>
+      <input id="aUser" autocomplete="username" autocapitalize="none" placeholder="jaise ramesh">
+      <label>Password</label>
+      <input id="aPass" type="password" autocomplete="current-password" placeholder="••••••">
+      <details style="margin-top:10px"><summary class="mute">Login ID nahi hai? PIN se jodo</summary>
+        <label>PIN (Host PC par dikh raha 6 ank)</label>
+        <input id="aPin" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="123456">
+      </details>
+      <label>Is device ka naam (Host par yahi dikhega)</label>
+      <input id="aName" maxlength="40" autocomplete="off">
+      <button class="btn p w" id="aBtn" onclick="pair()">🔗 Jodo</button>
+      <div id="aMsg" class="mute" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <!-- Host -->
+  <section id="vHost" style="display:none">
+    <div id="hStatus" class="mute" style="margin-bottom:10px"></div>
+    <div id="updNote" class="note" style="display:none;background:#ecfdf5;border-color:#a7f3d0;color:#065f46"></div>
+    <div class="tabs">
+      <button id="tPrint" onclick="tab('print')">🖨️ Print</button>
+      <button id="tScan" onclick="tab('scan')">📠 Scan</button>
+      <button id="tRemote" onclick="tab('remote')">🖥️ Remote</button>
+      <button id="tFiles" onclick="tab('files')">📁 Files</button>
+    </div>
+    <div id="permNote" class="note" style="display:none"></div>
+
+    <div id="pPrint" style="display:none">
+      <div class="card">
+        <label style="margin-top:0">Printer</label>
+        <select id="pPrinter"></select>
+        <label>File(s)</label>
+        <div id="pFiles"></div>
+        <button class="btn" style="margin-top:8px;width:100%" onclick="pickFiles()">📎 File chuno (PDF, photo, Word, Excel...)</button>
+        <input type="file" id="pInput" multiple style="display:none">
+        <div class="grid2">
+          <div><label>Copies</label><input id="pCopies" type="number" min="1" max="99" value="1"></div>
+          <div><label>Pages (khaali = sab)</label><input id="pPages" placeholder="jaise 1-3,5" inputmode="text"></div>
+          <div><label>Rang</label><select id="pColor"><option value="color">🎨 Color</option><option value="bw">⚫ Black & White</option></select></div>
+          <div><label>Kagaz ke dono taraf</label><select id="pDuplex"><option value="none">Ek taraf</option><option value="long">Dono taraf (lamba)</option><option value="short">Dono taraf (chhota)</option></select></div>
+          <div><label>Kagaz</label><select id="pPaper"><option value="">Printer jaisa</option><option>A4</option><option value="letter">Letter</option><option value="legal">Legal</option><option>A3</option><option>A5</option></select></div>
+          <div><label>Disha</label><select id="pOrient"><option value="">Apne aap</option><option value="portrait">Seedha (Portrait)</option><option value="landscape">Aada (Landscape)</option></select></div>
+        </div>
+        <label>Size</label>
+        <select id="pFit"><option value="">Page me fit</option><option value="none">Asli size</option></select>
+        <button class="btn p w" id="pBtn" onclick="doPrint()">🖨️ Print karo</button>
+      </div>
+      <div class="card" id="phoneSvcCard" style="display:none">
+        <b>📱 Phone ke HAR app me ye printers chahiye?</b>
+        <div class="mute" style="margin:6px 0 10px">Gallery, PDF, WhatsApp, Chrome — kisi bhi app me ⋮ → Print → printer chuniye: Host ke printer dikhenge.</div>
+        <button class="btn g" style="width:100%" onclick="A.openPrintSettings()">⚙️ Print service chalu karo</button>
+        <div class="mute" style="margin-top:8px">Khulne wali screen me <b>MeraPrint (PC ke printer)</b> → <b>ON</b>. Bas ek baar.</div>
+      </div>
+      <div class="card" id="pcClientCard" style="display:none">
+        <b>💻 Is PC ke HAR software me ye printers chahiye?</b>
+        <div class="mute" style="margin:6px 0 10px">Aadhaar client, Word, PDF, browser — kahin bhi Print dabao, Host ka printer dikhega aur print Host par jayega.</div>
+        <a class="btn g" id="pcClientLink" style="width:100%;text-decoration:none" download>⬇️ MeraPrint Client Setup download karo</a>
+        <div class="mute" style="margin-top:8px">Download ke baad file chalao → Host ka PIN daalo → Windows "Yes" dabao. (Browser "file khatarnak ho sakti hai" bole to <b>Keep / Rakhein</b> dabaiye.)</div>
+      </div>
+      <div class="card" id="pJobsCard" style="display:none"><b>Print ki haalat</b><div id="pJobs"></div></div>
+    </div>
+
+    <div id="pScan" style="display:none">
+      <div class="card">
+        <label style="margin-top:0">Scanner</label>
+        <select id="sScanner"></select>
+        <div class="grid2">
+          <div><label>Rang</label><select id="sMode"><option value="color">🎨 Color</option><option value="gray">Grey</option><option value="bw">⚫ Black & White</option></select></div>
+          <div><label>Quality (DPI)</label><select id="sDpi"><option>150</option><option selected>200</option><option>300</option><option>600</option></select></div>
+        </div>
+        <button class="btn p w" id="sBtn" onclick="doScan()">📠 Scan karo</button>
+        <div id="sMsg" class="mute" style="margin-top:10px"></div>
+        <img id="scanImg" alt="scan">
+        <div id="sActs" style="display:none" class="grid2">
+          <button class="btn g w" onclick="saveScan()">💾 Save karo</button>
+          <button class="btn w" onclick="doScan()">🔁 Agla page</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="pFiles" style="display:none">
+      <div class="card">
+        <b>📤 PC par file bhejo</b> <span class="mute" id="fSendPerm"></span>
+        <div id="fList" style="margin-top:6px"></div>
+        <button class="btn" style="margin-top:8px;width:100%" onclick="$('fInput').value='';$('fInput').click()">📎 File chuno (koi bhi)</button>
+        <input type="file" id="fInput" multiple style="display:none">
+        <button class="btn p w" id="fBtn" onclick="doSend()">📤 PC par bhejo</button>
+        <div id="fJobs"></div>
+      </div>
+      <div class="card">
+        <b>📥 PC se download</b> <span class="mute" id="fDlPerm"></span>
+        <div class="mute" id="fPath" style="margin:8px 0"></div>
+        <div id="fBrowse"></div>
+        <div id="dJobs"></div>
+      </div>
+    </div>
+
+    <div id="pRemote" style="display:none">
+      <div class="card center">
+        <div style="font-size:44px">🖥️</div>
+        <p>Host PC ki screen yahan dikhegi aur aap use chala sakoge.</p>
+        <button class="btn p w" onclick="openRemote()">▶️ Remote shuru karo</button>
+        <p class="mute" style="text-align:left">📱 Phone par: <b>tap</b> = click, <b>lamba dabao</b> = right-click, <b>ungli kheencho</b> = drag, <b>do ungli</b> = scroll, ✋ = screen sarkao (zoom ke baad).<br>💻 PC par: mouse aur keyboard seedhe chalte hain.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Remote screen -->
+<div id="remote">
+  <div class="rbar">
+    <button onclick="closeRemote()">✖ Band</button>
+    <button onclick="kbOpen()">⌨️</button>
+    <button id="rKeysBtn" onclick="toggleKeys()">Keys</button>
+    <button id="rPan" onclick="togglePan()">✋</button>
+    <button id="rRight" onclick="toggleRight()">Right-click</button>
+    <button onclick="zoomBy(1.4)">🔍+</button>
+    <button onclick="zoomBy(1/1.4)">🔍−</button>
+    <select id="rQ" onchange="setQ()"><option value="low">Halka (tez)</option><option value="med" selected>Theek</option><option value="high">Saaf</option><option value="best">Sabse saaf</option></select>
+  </div>
+  <div class="rbar keys" id="rKeys">
+    <button data-k="27">Esc</button><button data-k="9">Tab</button><button data-k="13">Enter</button><button data-k="8">⌫</button><button data-k="46">Del</button>
+    <button data-k="91">⊞ Win</button><button data-c="18,9">Alt+Tab</button><button data-c="17,67">Ctrl+C</button><button data-c="17,86">Ctrl+V</button>
+    <button data-c="17,90">Ctrl+Z</button><button data-c="17,65">Ctrl+A</button><button data-c="18,115">Alt+F4</button><button data-c="91,68">Desktop</button>
+    <button data-c="17,16,27">Task Mgr</button><button data-k="37">←</button><button data-k="38">↑</button><button data-k="40">↓</button><button data-k="39">→</button>
+    <button data-k="33">PgUp</button><button data-k="34">PgDn</button><button data-k="116">F5</button>
+  </div>
+  <div id="rWrap"><canvas id="rc" tabindex="0" width="16" height="9"></canvas><div id="rMsg">Jud rahe hain...</div></div>
+  <input id="rKb" type="password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const FB_URL = '__FB_URL__';           // Host / APK build ise bhar deta hai (Host ID se PC dhoondhne ke liye)
+const GH_REPO = '__GH__';              // GitHub repo jahan Host apna naya internet pata likhta hai (link badle to bhi judna)
+const A = window.Android || null;      // Phone app ka bridge (browser me null)
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const mb = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+
+function toast(t, ms) { const e = $('toast'); e.textContent = t; e.classList.add('on'); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove('on'), ms || 2500); }
+const store = {
+  get(k) { try { const v = A && A.load ? A.load(k) : localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
+  set(k, v) { const s = JSON.stringify(v); try { if (A && A.save) A.save(k, s); else localStorage.setItem(k, s); } catch (e) {} }
+};
+let hosts = store.get('mp_hosts') || [];
+const saveHosts = () => store.set('mp_hosts', hosts);
+let cur = null;          // { h, base, perms }
+let view = 'vHosts';
+
+function fetchT(url, opts, ms) {
+  const c = new AbortController(); const t = setTimeout(() => c.abort(), ms || 15000);
+  return fetch(url, Object.assign({}, opts || {}, { signal: c.signal })).finally(() => clearTimeout(t));
+}
+async function ping(base, hostId, ms) {
+  const r = await fetchT(base + '/api/ping', {}, ms || 2500);
+  const j = await r.json();
+  if (j && j.app === 'meraprint' && (!hostId || j.hostId === hostId)) return j;
+  throw new Error('nahi');
+}
+function firstOk(list, hostId, ms) {
+  list = [...new Set(list.filter(Boolean))];
+  if (!list.length) return Promise.resolve(null);
+  return new Promise(res => {
+    let left = list.length, done = false;
+    for (const b of list) ping(b, hostId, ms).then(() => { if (!done) { done = true; res(b); } }).catch(() => {}).finally(() => { if (--left === 0 && !done) res(null); });
+  });
+}
+const sameOrigin = () => /^https?:$/.test(location.protocol) ? [location.origin] : [];
+async function lookupFb(hostId, fb) {
+  fb = fb || FB_URL;
+  if (!fb || fb.indexOf('http') !== 0 || !hostId) return null;
+  try { const r = await fetchT(fb + 'printHosts/' + encodeURIComponent(hostId) + '/pub.json', { cache: 'no-store' }, 8000); return await r.json(); } catch (e) { return null; }
+}
+async function lookupGh(h) {
+  const repo = h.gh || (GH_REPO.indexOf('/') > 0 && GH_REPO.indexOf('__') < 0 ? GH_REPO : '');
+  if (!repo || !h.hostId) return null;
+  try { const r = await fetchT('https://api.github.com/repos/' + repo + '/contents/meraprint/' + encodeURIComponent(h.hostId) + '.json', { headers: { Accept: 'application/vnd.github.raw' }, cache: 'no-store' }, 8000); if (r.ok) return await r.json(); } catch (e) {}
+  try { const r = await fetchT('https://raw.githubusercontent.com/' + repo + '/HEAD/meraprint/' + encodeURIComponent(h.hostId) + '.json?t=' + Date.now(), {}, 8000); if (r.ok) return await r.json(); } catch (e) {}
+  return null;
+}
+async function resolveHost(h, say) {
+  say && say('PC dhoondh rahe hain (WiFi)...');
+  let b = await firstOk([h.manual].concat(h.lan || [], sameOrigin()), h.hostId, 1800);
+  if (b) return b;
+  say && say('Internet se dhoondh rahe hain...');
+  const f = await lookupFb(h.hostId, h.fb);
+  if (f) { h.lan = f.lan || h.lan; h.url = f.url || ''; saveHosts(); b = await firstOk(f.lan || [], h.hostId, 1800); if (b) return b; }
+  if (h.url) { b = await firstOk([h.url], h.hostId, 12000); if (b) return b; }
+  // Host restart hua to internet ka pata badal gaya — GitHub se naya pata
+  say && say('Host ka naya pata dhoondh rahe hain...');
+  const g = await lookupGh(h);
+  if (g && (g.url !== h.url || !b)) {
+    h.lan = g.lan || h.lan; h.url = g.url || h.url; saveHosts();
+    b = await firstOk(g.lan || [], h.hostId, 1800); if (b) return b;
+    if (g.url) { b = await firstOk([g.url], h.hostId, 12000); if (b) return b; }
+  }
+  return null;
+}
+async function api(path, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({ 'x-token': cur.h.token }, opts.headers || {});
+  const r = await fetchT(cur.base + path, opts, opts.timeout || 30000);
+  let j = null; try { j = await r.json(); } catch (e) {}
+  if (!r.ok) {
+    if (j && j.unpair) unpaired();
+    throw new Error((j && j.err) || ('Host ne mana kiya (' + r.status + ')'));
+  }
+  return j;
+}
+function unpaired() {
+  const h = cur && cur.h; if (!h) return;
+  alert(h.user ? 'Dobara login kijiye (password badla ho sakta hai).' : '"' + h.name + '" ne is device ko hata diya hai. Login ID + Password (ya PIN) se dobara jodiye.');
+  hosts = hosts.filter(x => x !== h); saveHosts(); cur = null;
+  showAdd(); $('aAddr').value = h.hostId; if (h.user) $('aUser').value = h.user;
+}
+
+// ---------------- Views ----------------
+function show(v, title, back) {
+  view = v;
+  for (const s of ['vHosts', 'vAdd', 'vHost']) $(s).style.display = s === v ? '' : 'none';
+  $('title').textContent = title; $('backBtn').style.display = back ? '' : 'none';
+  $('hdrBtn').style.display = 'none';
+}
+function goBack() { if (view !== 'vHosts') showHosts(); }
+window.onBack = function () {
+  if ($('remote').classList.contains('on')) { closeRemote(); return true; }
+  if (view !== 'vHosts') { showHosts(); return true; }
+  return false;
+};
+function showHosts() {
+  show('vHosts', '🖨️ MeraPrint', false);
+  cur = null;
+  $('hostList').innerHTML = hosts.length ? hosts.map((h, i) => '<div class="card host" onclick="openHost(' + i + ')"><div class="ic">🖥️</div><div style="flex:1"><div class="nm">' + esc(h.name) +
+    '</div><div class="mute">' + esc(h.hostId) + '</div></div><div>›</div></div>').join('') : '<div class="card center mute">Abhi koi PC nahi juda.</div>';
+  const n = sharedCount();
+  $('shareNote').style.display = n ? '' : 'none';
+  $('shareNote').textContent = n ? '📎 ' + n + ' file print ke liye aayi hai — PC chuniye.' : '';
+}
+function showAdd() {
+  show('vAdd', '➕ Naya PC jodo', true);
+  $('aMsg').textContent = '';
+  if (!$('aName').value) $('aName').value = defName();
+  if (!$('aAddr').value && sameOrigin().length) $('aAddr').value = location.host;
+}
+function defName() {
+  if (A && A.deviceName) try { return A.deviceName(); } catch (e) {}
+  const ua = navigator.userAgent;
+  return /Windows/.test(ua) ? 'Windows PC' : /Mac/.test(ua) ? 'Mac' : /Android/.test(ua) ? 'Android browser' : 'Browser';
+}
+const ID_RE = /^[A-Z0-9]{4}-?[A-Z0-9]{4}-?[A-Z0-9]{4}$/i;
+// Pata saaf karo: LAN (IP / PC naam) = http + :8790,  internet (trycloudflare / koi domain) = https, bina port
+function normAddr(a) {
+  a = a.trim().replace(/\/+$/, '');
+  const raw = a.replace(/^https?:\/\//i, '').split('/')[0];
+  const host = raw.replace(/:\d+$/, '');
+  const isLan = /^(\d{1,3}\.){3}\d{1,3}$/.test(host) || host === 'localhost' || host.indexOf('.') < 0 || /\.local$/i.test(host);
+  if (!isLan) return 'https://' + host;                                   // trycloudflare.com jaisa internet pata
+  const u = new URL('http://' + raw);
+  if (!u.port) u.port = '8790';
+  return u.origin;
+}
+async function pair() {
+  const addr = $('aAddr').value.trim(), pin = $('aPin').value.trim(), name = $('aName').value.trim() || defName();
+  const user = $('aUser').value.trim(), pass = $('aPass').value;
+  const say = t => $('aMsg').textContent = t;
+  if (!addr) return say('Host ID ya pata daaliye');
+  if (!user && !/^\d{6}$/.test(pin)) return say('Login ID + Password daaliye (ya PIN 6 ank ka)');
+  if (user && !pass) return say('Password daaliye');
+  $('aBtn').disabled = true;
+  try {
+    let base = null, manual = '';
+    if (ID_RE.test(addr)) {
+      const id = addr.toUpperCase().replace(/-/g, '').replace(/(.{4})(.{4})(.{4})/, '$1-$2-$3');
+      base = await resolveHost({ hostId: id }, say);
+      if (!base) throw new Error('PC nahi mila. Host chalu hai? Same WiFi par nahi ho to Host par "Internet" chalu hona chahiye. Ya Host ka pata (192.168.x.x ya https://...trycloudflare.com) daaliye.');
+    } else {
+      try { base = normAddr(addr); } catch (e) { throw new Error('Pata galat hai'); }
+      say('Jud rahe hain...');
+      try { await ping(base, '', 8000); } catch (e) { throw new Error('Is pate par Host nahi mila: ' + base); }
+      manual = base;
+    }
+    say(user ? 'Login ho rahe hain...' : 'PIN jaanch rahe hain...');
+    const r = user
+      ? await fetchT(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user, pass, name }) }, 20000)
+      : await fetchT(base + '/api/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin, name }) }, 15000);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.err || 'Nahi jud paya');
+    hosts = hosts.filter(x => x.hostId !== j.hostId);
+    hosts.push({ hostId: j.hostId, name: j.name, token: j.token, lan: j.lan || [], url: j.url || '', manual: manual.indexOf('trycloudflare') > 0 ? '' : manual, gh: j.gh || '', fb: j.fb || '', user: j.user || '' });
+    $('aPass').value = '';
+    saveHosts();
+    $('aPin').value = ''; $('aAddr').value = '';
+    toast('✅ Jud gaya: ' + j.name);
+    openHost(hosts.length - 1);
+  } catch (e) { say('✖ ' + (e.name === 'AbortError' ? 'Jawab nahi aaya (timeout)' : e.message)); }
+  finally { $('aBtn').disabled = false; }
+}
+
+let curTab = 'print';
+async function openHost(i) {
+  const h = hosts[i]; if (!h) return;
+  show('vHost', '🖥️ ' + h.name, true);
+  $('hdrBtn').style.display = ''; $('hdrBtn').textContent = '⋮';
+  $('hdrBtn').onclick = () => hostMenu(h);
+  cur = { h, base: null, perms: {} };
+  const st = $('hStatus');
+  for (const t of ['pPrint', 'pScan', 'pRemote']) $(t).style.display = 'none';
+  $('permNote').style.display = 'none';
+  const base = await resolveHost(h, t => st.textContent = t);
+  if (cur === null || cur.h !== h) return;
+  if (!base) { st.innerHTML = '✖ PC nahi mila. Host PC chalu hai aur START-HOST.bat chal raha hai? <a href="#" onclick="openHost(' + i + ');return false">🔁 Dobara</a>'; return; }
+  cur.base = base;
+  try {
+    const me = await api('/api/me');
+    cur.perms = me.perms; h.name = me.host; h.lan = me.lan; h.url = me.url || h.url; if (me.gh) h.gh = me.gh; if (me.fb) h.fb = me.fb;
+    if (h.manual && h.manual.indexOf('trycloudflare') > 0) h.manual = '';    // purana badalne wala link yaad na rakho
+    saveHosts();
+    $('title').textContent = '🖥️ ' + me.host;
+    st.textContent = (base.indexOf('trycloudflare') > 0 ? '🌐 Internet se juda' : '📶 WiFi / LAN se juda') + ' • ' + me.name;
+    const lbl = { allow: '', ask: ' ❓', deny: ' ⛔' };
+    $('tPrint').textContent = '🖨️ Print' + lbl[me.perms.print]; $('tScan').textContent = '📠 Scan' + lbl[me.perms.scan]; $('tRemote').textContent = '🖥️ Remote' + lbl[me.perms.remote];
+    $('tFiles').classList.toggle('off', me.perms.send === 'deny' && me.perms.download === 'deny');
+    $('tPrint').classList.toggle('off', me.perms.print === 'deny'); $('tScan').classList.toggle('off', me.perms.scan === 'deny'); $('tRemote').classList.toggle('off', me.perms.remote === 'deny');
+    tab(sharedCount() ? 'print' : curTab);
+    checkUpdate();
+  } catch (e) { if (cur) st.textContent = '✖ ' + e.message; }
+}
+// MeraPrint app ka apna update — Host PC se (MeraCall ke update se koi lena-dena nahi)
+async function checkUpdate() {
+  const n = $('updNote'); n.style.display = 'none';
+  if (!A || !A.versionCode || !A.installUpdate) return;
+  try {
+    const j = await api('/api/app');
+    if (!j.versionCode || j.versionCode <= A.versionCode()) return;
+    n.innerHTML = '✨ <b>MeraPrint ka naya update (' + esc(j.versionName) + ')</b>' + (j.note ? '<br>' + esc(j.note) : '') +
+      '<br><button class="btn g" style="margin-top:8px" id="updBtn">⬇️ Update karo (' + mb(j.size) + ')</button>';
+    n.style.display = '';
+    $('updBtn').onclick = () => { A.installUpdate(cur.base + '/dl/' + j.ticket); $('updBtn').disabled = true; $('updBtn').textContent = 'Download ho raha hai...'; };
+  } catch (e) {}
+}
+function hostMenu(h) {
+  if (confirm('"' + h.name + '" ko is device se hata dein?\n(Dobara jodne ke liye Host ka naya PIN chahiye hoga)')) {
+    if (cur && cur.base) api('/api/unpair', { method: 'POST' }).catch(() => {});
+    hosts = hosts.filter(x => x !== h); saveHosts(); showHosts();
+  }
+}
+function tab(t) {
+  curTab = t;
+  for (const [k, id] of [['print', 'tPrint'], ['scan', 'tScan'], ['remote', 'tRemote'], ['files', 'tFiles']]) $(id).classList.toggle('on', k === t);
+  $('pPrint').style.display = t === 'print' ? '' : 'none';
+  $('pScan').style.display = t === 'scan' ? '' : 'none';
+  $('pRemote').style.display = t === 'remote' ? '' : 'none';
+  $('pFiles').style.display = t === 'files' ? '' : 'none';
+  const n = $('permNote');
+  if (t === 'files') {
+    n.style.display = 'none';
+    const pl = v => v === 'deny' ? '⛔ ijazat nahi' : v === 'ask' ? '❓ har baar Allow' : '';
+    $('fSendPerm').textContent = pl(cur.perms.send); $('fDlPerm').textContent = pl(cur.perms.download);
+    if (!sendList.length) { const n2 = sharedCount(); for (let i = 0; i < n2; i++) { try { const inf = JSON.parse(A.sharedInfo(i)); sendList.push({ name: inf.name, size: inf.size, mime: inf.mime, shared: i }); } catch (e) {} } }
+    renderSend();
+    if (cur.perms.download !== 'deny') browse(''); else $('fBrowse').innerHTML = '';
+    return;
+  }
+  const p = cur.perms[t];
+  n.style.display = p === 'allow' ? 'none' : '';
+  n.textContent = p === 'deny' ? '⛔ Host PC ne is device ko ' + ({ print: 'print', scan: 'scan', remote: 'Remote' })[t] + ' ki ijazat nahi di hai. Host ke admin panel me badal sakte hain.'
+    : '❓ Har baar Host PC par "Allow" dabana hoga, tabhi chalega.';
+  if (t === 'print' && p !== 'deny') loadPrinters();
+  const isWin = !A && /Windows/.test(navigator.userAgent);
+  $('phoneSvcCard').style.display = t === 'print' && A && A.openPrintSettings && p !== 'deny' ? '' : 'none';
+  $('pcClientCard').style.display = t === 'print' && isWin && p !== 'deny' ? '' : 'none';
+  if (isWin) $('pcClientLink').href = cur.base + '/MeraPrint-Client-Setup.bat';
+  if (t === 'scan' && p !== 'deny') loadScanners();
+  if (t === 'print') renderFiles();
+}
+
+// ---------------- Print ----------------
+let files = [];      // {name, size, file?:File, shared?:index}
+function sharedCount() { try { return A && A.sharedCount ? A.sharedCount() : 0; } catch (e) { return 0; } }
+function takeShared() {
+  const n = sharedCount(); if (!n) return;
+  for (let i = 0; i < n; i++) { try { const inf = JSON.parse(A.sharedInfo(i)); files.push({ name: inf.name || ('file' + i), size: inf.size || 0, mime: inf.mime, shared: i }); } catch (e) {} }
+}
+window.onShared = function () {
+  files = files.filter(f => f.shared == null); takeShared();
+  if (cur && cur.base) tab('print'); else if (hosts.length === 1) openHost(0); else showHosts();
+};
+async function loadPrinters() {
+  const s = $('pPrinter');
+  if (s.dataset.base === cur.base && s.options.length) return;
+  s.innerHTML = '<option>Printer dhoondh rahe hain...</option>';
+  try {
+    const l = await api('/api/printers');
+    const last = store.get('mp_printer_' + cur.h.hostId);
+    s.innerHTML = l.length ? l.map(p => '<option value="' + esc(p.name) + '"' + ((last ? p.name === last : p.isDefault) ? ' selected' : '') + '>' + esc(p.name) + (p.isDefault ? ' ⭐' : '') + (p.offline ? ' (offline)' : '') + '</option>').join('') : '<option value="">Koi printer nahi mila</option>';
+    s.dataset.base = cur.base;
+  } catch (e) { s.innerHTML = '<option value="">✖ ' + esc(e.message) + '</option>'; }
+}
+function pickFiles() { $('pInput').value = ''; $('pInput').click(); }
+$('pInput').addEventListener('change', e => { for (const f of e.target.files) files.push({ name: f.name, size: f.size, file: f }); renderFiles(); });
+function renderFiles() {
+  $('pFiles').innerHTML = files.length ? files.map((f, i) => '<div class="file"><span>' + icon(f.name) + '</span><span class="n">' + esc(f.name) + '</span><span class="mute">' + mb(f.size) + '</span><button class="x" onclick="files.splice(' + i + ',1);renderFiles()">✕</button></div>').join('')
+    : '<div class="mute">Koi file nahi chuni</div>';
+}
+function icon(n) { const e = (n.split('.').pop() || '').toLowerCase(); return e === 'pdf' ? '📕' : /^(jpe?g|png|gif|bmp|webp|heic|tiff?)$/.test(e) ? '🖼️' : /^(docx?|rtf|odt|txt)$/.test(e) ? '📝' : /^(xlsx?|csv|ods)$/.test(e) ? '📊' : /^(pptx?|odp)$/.test(e) ? '📽️' : '📄'; }
+
+async function sharedBlob(f, onp) {
+  const CH = 786432, parts = []; let off = 0;
+  for (;;) {
+    const b64 = A.sharedRead(f.shared, off, CH);
+    if (!b64) break;
+    const bin = atob(b64), u = new Uint8Array(bin.length);
+    for (let k = 0; k < bin.length; k++) u[k] = bin.charCodeAt(k);
+    parts.push(u); off += u.length; onp && f.size && onp(off / f.size);
+    if (u.length < CH) break;
+    await sleep(0);
+  }
+  return new Blob(parts, { type: f.mime || 'application/octet-stream' });
+}
+function upload(blob, name, opts, onp, endpoint) {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('PUT', cur.base + (endpoint || '/api/print'));
+    x.setRequestHeader('x-token', cur.h.token);
+    x.setRequestHeader('x-name', encodeURIComponent(name));
+    x.setRequestHeader('x-opts', encodeURIComponent(JSON.stringify(opts)));
+    x.upload.onprogress = e => e.lengthComputable && onp(e.loaded / e.total);
+    x.onload = () => { let j = {}; try { j = JSON.parse(x.responseText); } catch (e) {} if (x.status === 200) resolve(j); else { if (j.unpair) unpaired(); reject(new Error(j.err || ('Error ' + x.status))); } };
+    x.onerror = () => reject(new Error('Network toot gaya'));
+    x.send(blob);
+  });
+}
+let jobSeq = 0;
+function jobRow(name, box) {
+  const id = 'job' + (++jobSeq);
+  if (!box) $('pJobsCard').style.display = '';
+  $(box || 'pJobs').insertAdjacentHTML('afterbegin', '<div class="job" id="' + id + '"><div>' + icon(name) + ' <b>' + esc(name) + '</b></div><div class="mute s"></div><div class="bar"><i></i></div></div>');
+  const el = $(id);
+  return { set(t, cls, pct) { const s = el.querySelector('.s'); s.textContent = t; s.className = 'mute s ' + (cls ? 'st-' + cls : ''); const b = el.querySelector('.bar'); if (pct == null) b.style.display = 'none'; else { b.style.display = ''; b.firstChild.style.width = Math.round(pct * 100) + '%'; } } };
+}
+async function doPrint() {
+  if (!files.length) return toast('Pehle file chuniye');
+  const printer = $('pPrinter').value;
+  if (!printer) return toast('Printer nahi mila');
+  store.set('mp_printer_' + cur.h.hostId, printer);
+  const opts = { printer, copies: +$('pCopies').value || 1, pages: $('pPages').value.trim(), color: $('pColor').value, duplex: $('pDuplex').value, paper: $('pPaper').value, orient: $('pOrient').value, fit: $('pFit').value };
+  const list = files.splice(0); renderFiles();
+  let hadShared = false;
+  for (const f of list) {
+    const row = jobRow(f.name);
+    try {
+      let blob = f.file;
+      if (f.shared != null) { hadShared = true; row.set('Phone se padh rahe hain...', '', 0); blob = await sharedBlob(f, p => row.set('Phone se padh rahe hain... ' + Math.round(p * 100) + '%', '', p)); }
+      row.set('PC tak bhej rahe hain...', '', 0);
+      const r = await upload(blob, f.name, opts, p => row.set('PC tak bhej rahe hain... ' + Math.round(p * 100) + '%', '', p));
+      watchJob(r.job, row);
+    } catch (e) { row.set('✖ ' + e.message, 'error'); }
+  }
+  if (hadShared && A && A.clearShared) A.clearShared();
+}
+async function watchJob(id, row, onDone) {
+  const LBL = { approval: '⏳ Host PC par "Allow" ka intezaar...', printing: '🖨️ Print ho raha hai...', scanning: '📠 Scan ho raha hai...' };
+  for (let n = 0; n < 400; n++) {
+    let j; try { j = await api('/api/job/' + id); } catch (e) { await sleep(2500); continue; }
+    if (j.state === 'done' || j.state === 'error' || j.state === 'denied') { row.set(j.msg, j.state); if (onDone) await onDone(j); return; }
+    row.set(j.msg || LBL[j.state] || j.state, j.state, null);
+    await sleep(1500);
+  }
+  row.set('Jawab nahi aaya', 'error');
+}
+
+// ---------------- Scan ----------------
+async function loadScanners() {
+  const s = $('sScanner');
+  if (s.dataset.base === cur.base && s.options.length) return;
+  s.innerHTML = '<option>Scanner dhoondh rahe hain...</option>';
+  try {
+    const l = await api('/api/scanners', { timeout: 60000 });
+    s.innerHTML = l.length ? l.map(x => '<option value="' + esc(x.id) + '">' + esc(x.name) + '</option>').join('') : '<option value="">Koi scanner nahi mila</option>';
+    s.dataset.base = cur.base;
+  } catch (e) { s.innerHTML = '<option value="">✖ ' + esc(e.message) + '</option>'; }
+}
+let lastScan = null;
+async function doScan() {
+  if (!$('sScanner').value) return toast('Scanner nahi mila');
+  $('sBtn').disabled = true; $('sActs').style.display = 'none';
+  const row = { set: (t, cls) => { $('sMsg').textContent = t; $('sMsg').className = 'mute ' + (cls ? 'st-' + cls : ''); } };
+  try {
+    const r = await api('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scanner: $('sScanner').value, mode: $('sMode').value, dpi: +$('sDpi').value }) });
+    row.set('Bhej diya...');
+    await watchJob(r.job, row, async j => {
+      if (j.state !== 'done') return;
+      row.set('Scan aa raha hai...');
+      const res = await fetchT(cur.base + '/api/job/' + r.job + '/file', { headers: { 'x-token': cur.h.token } }, 120000);
+      if (!res.ok) throw new Error('Scan file nahi mili');
+      const blob = await res.blob();
+      if (lastScan) URL.revokeObjectURL(lastScan.url);
+      lastScan = { blob, name: j.name || 'scan.jpg', url: URL.createObjectURL(blob) };
+      $('scanImg').src = lastScan.url; $('scanImg').style.display = 'block'; $('sActs').style.display = '';
+      row.set('✅ Scan taiyaar (' + mb(blob.size) + ')', 'done');
+    });
+  } catch (e) { row.set('✖ ' + e.message, 'error'); }
+  finally { $('sBtn').disabled = false; }
+}
+function saveScan() {
+  if (!lastScan) return;
+  if (A && A.saveFile) {
+    const fr = new FileReader();
+    fr.onload = () => { const ok = A.saveFile(lastScan.name, 'image/jpeg', String(fr.result).split(',')[1]); toast(ok ? '✅ Download/MeraPrint me save hua' : '✖ Save nahi hua'); };
+    fr.readAsDataURL(lastScan.blob);
+  } else { const a = document.createElement('a'); a.href = lastScan.url; a.download = lastScan.name; document.body.appendChild(a); a.click(); a.remove(); }
+}
+
+// ---------------- Files: bhejo / download ----------------
+let sendList = [];
+$('fInput').addEventListener('change', e => { for (const f of e.target.files) sendList.push({ name: f.name, size: f.size, file: f }); renderSend(); });
+function renderSend() {
+  $('fList').innerHTML = sendList.length ? sendList.map((f, i) => '<div class="file"><span>' + icon(f.name) + '</span><span class="n">' + esc(f.name) + '</span><span class="mute">' + mb(f.size) + '</span><button class="x" onclick="sendList.splice(' + i + ',1);renderSend()">✕</button></div>').join('')
+    : '<div class="mute">Koi file nahi chuni</div>';
+}
+async function doSend() {
+  if (cur.perms.send === 'deny') return toast('Host ne file bhejne ki ijazat nahi di');
+  if (!sendList.length) return toast('Pehle file chuniye');
+  const list = sendList.splice(0); renderSend();
+  let hadShared = false;
+  for (const f of list) {
+    const row = jobRow(f.name, 'fJobs');
+    try {
+      let blob = f.file;
+      if (f.shared != null) { hadShared = true; blob = await sharedBlob(f, p => row.set('Phone se padh rahe hain... ' + Math.round(p * 100) + '%', '', p)); }
+      const r = await upload(blob, f.name, {}, p => row.set('PC tak bhej rahe hain... ' + Math.round(p * 100) + '%', '', p), '/api/send');
+      watchJob(r.job, row);
+    } catch (e) { row.set('✖ ' + e.message, 'error'); }
+  }
+  if (hadShared && A && A.clearShared) A.clearShared();
+}
+let curPath = '';
+async function browse(path) {
+  $('fBrowse').innerHTML = '<div class="mute">Khol rahe hain...</div>';
+  try {
+    const r = await api('/api/files?path=' + encodeURIComponent(path));
+    curPath = r.path || '';
+    const parts = curPath ? curPath.split('/') : [];
+    $('fPath').innerHTML = '<a href="#" onclick="browse(\'\');return false">📁 Share</a>' + parts.map((x, i) => ' / <a href="#" data-p="' + esc(parts.slice(0, i + 1).join('/')) + '" onclick="browse(this.dataset.p);return false">' + esc(x) + '</a>').join('');
+    $('fBrowse').innerHTML = (curPath ? '<div class="file" style="cursor:pointer" data-p="' + esc(parts.slice(0, -1).join('/')) + '" onclick="browse(this.dataset.p)"><span>⬆️</span><span class="n">Upar</span></div>' : '') +
+      (r.items.length ? r.items.map(it => {
+        const full = (curPath ? curPath + '/' : '') + it.name;
+        return '<div class="file" style="cursor:pointer" data-p="' + esc(full) + '" onclick="' + (it.dir ? 'browse(this.dataset.p)' : 'dl(this.dataset.p)') + '"><span>' + (it.dir ? '📁' : icon(it.name)) + '</span><span class="n">' + esc(it.name) + '</span><span class="mute">' + (it.dir ? '›' : mb(it.size) + ' ⬇️') + '</span></div>';
+      }).join('') : '<div class="mute">Ye folder khaali hai. Host PC par share folder me file rakhiye.</div>');
+  } catch (e) { $('fBrowse').innerHTML = '<div class="mute st-error">✖ ' + esc(e.message) + '</div>'; }
+}
+async function dl(path) {
+  const name = path.split('/').pop();
+  const row = jobRow(name, 'dJobs');
+  try {
+    const r = await api('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
+    row.set('Maang rahe hain...');
+    await watchJob(r.job, row, async j => {
+      if (j.state !== 'done' || !j.ticket) return;
+      const url = cur.base + '/dl/' + j.ticket;
+      if (A && A.download) { A.download(url, name); row.set('⬇️ Download shuru — phone ki notification / Download/MeraPrint dekhein', 'done'); }
+      else { const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); row.set('⬇️ Download shuru', 'done'); }
+    });
+  } catch (e) { row.set('✖ ' + e.message, 'error'); }
+}
+
+// ---------------- Remote Desktop ----------------
+let ws = null, zoom = 1, pan = false, rightNext = false, keysOn = false;
+const cv = $('rc'), ctx = cv.getContext('2d'), wrap = $('rWrap');
+const Q = { low: { scale: 0.5, q: 35 }, med: { scale: 0.7, q: 50 }, high: { scale: 0.9, q: 65 }, best: { scale: 1, q: 80 } };
+const rsend = o => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); };
+function rmsg(t) { $('rMsg').style.display = t ? '' : 'none'; $('rMsg').textContent = t || ''; }
+function openRemote() {
+  if (!cur || !cur.base) return;
+  if (cur.perms.remote === 'deny') return toast('Remote ki ijazat nahi hai');
+  $('remote').classList.add('on'); rmsg('Jud rahe hain...');
+  if (A && A.keepAwake) A.keepAwake(true);
+  if (cur.base.indexOf('trycloudflare') > 0 && !store.get('mp_q')) $('rQ').value = 'low'; else $('rQ').value = store.get('mp_q') || 'med';
+  const sock = new WebSocket(cur.base.replace(/^http/, 'ws') + '/ws');
+  ws = sock; sock.binaryType = 'arraybuffer';
+  sock.onopen = () => sock.send(JSON.stringify({ t: 'auth', token: cur.h.token }));
+  sock.onmessage = e => {
+    if (sock !== ws) return;
+    if (typeof e.data !== 'string') return onFrame(e.data);
+    let o; try { o = JSON.parse(e.data); } catch (x) { return; }
+    if (o.t === 'wait') rmsg(cur.perms.remote === 'ask' ? '⏳ Host PC par "Allow" ka intezaar...' : o.msg);
+    else if (o.t === 'ok') { rmsg('Screen aa rahi hai...'); setQ(); rsend({ t: 'next' }); cv.focus(); }
+    else if (o.t === 'err') { rmsg('✖ ' + o.msg); if (o.unpair) { sock.close(); unpaired(); closeRemote(); } }
+  };
+  sock.onclose = () => { if (sock === ws) { ws = null; if ($('rMsg').textContent.indexOf('✖') !== 0) rmsg('Connection band ho gaya. ✖ Band dabaiye, phir dobara shuru karein.'); } };
+}
+function closeRemote() {
+  releaseAll();
+  const s = ws; ws = null; if (s) try { s.close(); } catch (e) {}
+  $('remote').classList.remove('on');
+  if (A && A.keepAwake) A.keepAwake(false);
+}
+function setQ() { const v = $('rQ').value; store.set('mp_q', v); rsend(Object.assign({ t: 'q' }, Q[v])); }
+function onFrame(buf) {
+  const next = () => rsend({ t: 'next' });
+  const blob = new Blob([new Uint8Array(buf, 8)], { type: 'image/jpeg' });
+  if (window.createImageBitmap) createImageBitmap(blob).then(b => { draw(b); if (b.close) b.close(); next(); }).catch(next);
+  else { const im = new Image(), u = URL.createObjectURL(blob); im.onload = () => { draw(im); URL.revokeObjectURL(u); next(); }; im.onerror = next; im.src = u; }
+}
+function draw(b) {
+  if (cv.width !== b.width || cv.height !== b.height) { cv.width = b.width; cv.height = b.height; layout(); }
+  ctx.drawImage(b, 0, 0);
+  if ($('rMsg').textContent && $('rMsg').textContent.indexOf('✖') !== 0) rmsg('');
+}
+function layout() {
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  const s = Math.min(W / cv.width, H / cv.height) * zoom;
+  cv.style.width = Math.round(cv.width * s) + 'px'; cv.style.height = Math.round(cv.height * s) + 'px';
+}
+window.addEventListener('resize', () => { if ($('remote').classList.contains('on')) layout(); });
+function zoomBy(f) { zoom = Math.min(5, Math.max(1, zoom * f)); layout(); if (zoom > 1 && !pan) toast('✋ dabakar screen sarkaiye'); }
+function togglePan() { pan = !pan; $('rPan').classList.toggle('on', pan); cv.style.touchAction = pan ? 'auto' : 'none'; toast(pan ? '✋ Ab ungli se screen sarkegi (PC nahi chalega)' : '🖱️ Ab ungli se PC chalega'); }
+function toggleRight() { rightNext = !rightNext; $('rRight').classList.toggle('on', rightNext); if (rightNext) toast('Agla tap = right-click'); }
+function toggleKeys() { keysOn = !keysOn; $('rKeys').classList.toggle('on', keysOn); $('rKeysBtn').classList.toggle('on', keysOn); setTimeout(layout, 50); }
+function pos(cx, cy) { const r = cv.getBoundingClientRect(); return { x: Math.min(1, Math.max(0, (cx - r.left) / r.width)), y: Math.min(1, Math.max(0, (cy - r.top) / r.height)) }; }
+function moveTo(cx, cy) { const p = pos(cx, cy); rsend({ t: 'm', x: p.x, y: p.y }); }
+function click(b) { rsend({ t: 'b', b, d: 1 }); rsend({ t: 'b', b, d: 0 }); }
+
+// Mouse (PC browser)
+let lastMove = 0, btnDown = new Set();
+cv.addEventListener('mousedown', e => { if (e.button > 2) return; e.preventDefault(); cv.focus(); moveTo(e.clientX, e.clientY); const b = ['L', 'M', 'R'][e.button]; btnDown.add(b); rsend({ t: 'b', b, d: 1 }); });
+window.addEventListener('mouseup', e => { const b = ['L', 'M', 'R'][e.button]; if (btnDown.has(b)) { btnDown.delete(b); moveTo(e.clientX, e.clientY); rsend({ t: 'b', b, d: 0 }); } });
+cv.addEventListener('mousemove', e => { const n = Date.now(); if (n - lastMove < 25) return; lastMove = n; moveTo(e.clientX, e.clientY); });
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('wheel', e => { e.preventDefault(); let d = e.deltaY * (e.deltaMode === 1 ? 40 : 1); rsend({ t: 'w', dy: Math.max(-1200, Math.min(1200, Math.round(-d / 100 * 120))) }); }, { passive: false });
+
+// Touch (phone)
+let tS = null, tDrag = false, tDone = false, tLong = null, two = null, tLast = 0;
+const avg = (ts, k) => (ts[0][k] + ts[1][k]) / 2;
+cv.addEventListener('touchstart', e => {
+  if (pan) return; e.preventDefault();
+  if (e.touches.length === 1) {
+    const t = e.touches[0]; tS = { x: t.clientX, y: t.clientY }; tDrag = false; tDone = false; two = null;
+    clearTimeout(tLong);
+    tLong = setTimeout(() => { if (!tDrag && tS) { tDone = true; moveTo(tS.x, tS.y); click('R'); if (navigator.vibrate) navigator.vibrate(30); } }, 550);
+  } else if (e.touches.length === 2) {
+    clearTimeout(tLong); if (tDrag) { rsend({ t: 'b', b: 'L', d: 0 }); tDrag = false; }
+    tDone = true; two = { x: avg(e.touches, 'clientX'), y: avg(e.touches, 'clientY') };
+  }
+}, { passive: false });
+cv.addEventListener('touchmove', e => {
+  if (pan) return; e.preventDefault();
+  if (two && e.touches.length === 2) {
+    const y = avg(e.touches, 'clientY'), x = avg(e.touches, 'clientX');
+    if (Math.abs(y - two.y) >= 22) { rsend({ t: 'w', dy: Math.round((y - two.y) / 22) * 120 }); two.y = y; }
+    if (Math.abs(x - two.x) >= 30) { rsend({ t: 'w', dy: 0, dx: -Math.round((x - two.x) / 30) * 120 }); two.x = x; }
+    return;
+  }
+  if (e.touches.length !== 1 || !tS || tDone) return;
+  const t = e.touches[0];
+  if (!tDrag && Math.hypot(t.clientX - tS.x, t.clientY - tS.y) > 12) { tDrag = true; clearTimeout(tLong); moveTo(tS.x, tS.y); rsend({ t: 'b', b: 'L', d: 1 }); }
+  if (tDrag) { const n = Date.now(); if (n - tLast > 30) { tLast = n; moveTo(t.clientX, t.clientY); } }
+}, { passive: false });
+cv.addEventListener('touchend', e => {
+  if (pan) return; e.preventDefault(); clearTimeout(tLong);
+  if (e.touches.length) return;
+  if (tDrag) { const t = e.changedTouches[0]; moveTo(t.clientX, t.clientY); rsend({ t: 'b', b: 'L', d: 0 }); tDrag = false; }
+  else if (!tDone && tS) { moveTo(tS.x, tS.y); click(rightNext ? 'R' : 'L'); if (rightNext) toggleRight(); }
+  tS = null; two = null;
+}, { passive: false });
+
+// Keyboard
+const VK = { Enter: 13, NumpadEnter: 13, Backspace: 8, Tab: 9, Escape: 27, Space: 32, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Delete: 46, Insert: 45, Home: 36, End: 35, PageUp: 33, PageDown: 34,
+  ShiftLeft: 160, ShiftRight: 161, ControlLeft: 162, ControlRight: 163, AltLeft: 164, AltRight: 165, MetaLeft: 91, MetaRight: 92, CapsLock: 20, ContextMenu: 93, PrintScreen: 44,
+  Minus: 189, Equal: 187, BracketLeft: 219, BracketRight: 221, Backslash: 220, Semicolon: 186, Quote: 222, Comma: 188, Period: 190, Slash: 191, Backquote: 192,
+  NumpadMultiply: 106, NumpadAdd: 107, NumpadSubtract: 109, NumpadDecimal: 110, NumpadDivide: 111, NumLock: 144 };
+function vkOf(code) {
+  if (VK[code]) return VK[code];
+  let m = /^Key([A-Z])$/.exec(code); if (m) return m[1].charCodeAt(0);
+  m = /^Digit(\d)$/.exec(code); if (m) return 48 + +m[1];
+  m = /^Numpad(\d)$/.exec(code); if (m) return 96 + +m[1];
+  m = /^F(\d{1,2})$/.exec(code); if (m) return 111 + +m[1];
+  return 0;
+}
+const keysDown = new Set();
+document.addEventListener('keydown', e => {
+  if (!$('remote').classList.contains('on') || e.target === $('rKb')) return;
+  const vk = vkOf(e.code); if (!vk) return;
+  e.preventDefault(); keysDown.add(vk); rsend({ t: 'k', vk, d: 1 });
+});
+document.addEventListener('keyup', e => {
+  if (!$('remote').classList.contains('on') || e.target === $('rKb')) return;
+  const vk = vkOf(e.code); if (!vk) return;
+  e.preventDefault(); keysDown.delete(vk); rsend({ t: 'k', vk, d: 0 });
+});
+window.addEventListener('blur', releaseAll);
+function releaseAll() { for (const vk of keysDown) rsend({ t: 'k', vk, d: 0 }); keysDown.clear(); for (const b of btnDown) rsend({ t: 'b', b, d: 0 }); btnDown.clear(); if (tDrag) { rsend({ t: 'b', b: 'L', d: 0 }); tDrag = false; } }
+// Phone keyboard: chhupa hua dabba (password type: Gboard har akshar turant bhejta hai)
+const kb = $('rKb'), SENT = '__';
+function kbOpen() { kb.value = SENT; kb.focus(); try { kb.setSelectionRange(2, 2); } catch (e) {} }
+kb.addEventListener('input', e => {
+  const t = e.inputType || '';
+  if (t.indexOf('delete') === 0) rsend({ t: 'k', vk: 8, d: 1 }), rsend({ t: 'k', vk: 8, d: 0 });
+  else if (t === 'insertLineBreak') rsend({ t: 'txt', s: '\n' });
+  else { const v = kb.value; const add = e.data || (v.indexOf(SENT) === 0 ? v.slice(2) : ''); if (add) rsend({ t: 'txt', s: add }); }
+  kb.value = SENT; try { kb.setSelectionRange(2, 2); } catch (x) {}
+});
+kb.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); rsend({ t: 'txt', s: '\n' }); } });
+for (const b of document.querySelectorAll('#rKeys button')) b.addEventListener('click', () => {
+  if (b.dataset.k) { const k = +b.dataset.k; rsend({ t: 'k', vk: k, d: 1 }); rsend({ t: 'k', vk: k, d: 0 }); }
+  else rsend({ t: 'combo', keys: b.dataset.c.split(',').map(Number) });
+});
+
+// ---------------- Start ----------------
+takeShared();
+if (sharedCount() && hosts.length === 1) openHost(0);
+else if (!hosts.length && sameOrigin().length) showAdd();
+else showHosts();
+</script>
+</body>
+</html>

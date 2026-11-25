@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MeraPrint Host — Admin</title>
+<style>
+  :root { --bg:#f4f6fb; --card:#fff; --ink:#111827; --mute:#6b7280; --line:#e5e7eb; --blue:#0a7cff; --green:#16a34a; --red:#dc2626; --amber:#d97706; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.45 "Segoe UI",system-ui,sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:var(--blue); color:#fff; padding:14px 22px; display:flex; align-items:center; gap:14px; }
+  header h1 { margin:0; font-size:20px; }
+  header .host { opacity:.9; }
+  header button { margin-left:auto; }
+  main { max-width:1250px; margin:0 auto; padding:18px; display:grid; gap:16px; grid-template-columns: 1fr 1fr; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; }
+  .wide { grid-column: 1 / -1; }
+  h2 { margin:0 0 10px; font-size:16px; }
+  .big { font:700 30px/1.1 Consolas,monospace; letter-spacing:2px; }
+  .mute { color:var(--mute); font-size:13px; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  button { font:inherit; padding:7px 14px; border-radius:8px; border:1px solid var(--line); background:#fff; cursor:pointer; }
+  button.p { background:var(--blue); color:#fff; border-color:var(--blue); }
+  button.g { background:var(--green); color:#fff; border-color:var(--green); }
+  button.r { background:var(--red); color:#fff; border-color:var(--red); }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:9px 6px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  th { font-size:13px; color:var(--mute); font-weight:600; }
+  select { font:inherit; padding:6px 8px; border-radius:8px; border:1px solid var(--line); }
+  select.allow { background:#dcfce7; } select.ask { background:#fef3c7; } select.deny { background:#fee2e2; }
+  .pend { border:2px solid var(--amber); background:#fffbeb; border-radius:10px; padding:12px; margin-bottom:10px; white-space:pre-line; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; }
+  .on { background:var(--green); } .off { background:#9ca3af; }
+  pre { background:#0f172a; color:#cbd5e1; padding:12px; border-radius:10px; max-height:260px; overflow:auto; font-size:12.5px; margin:0; white-space:pre-wrap; }
+  code { background:#eef2ff; padding:2px 6px; border-radius:6px; }
+  .live { color:var(--red); font-weight:600; }
+  @media (max-width:800px) { main { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>🖨️ MeraPrint Host</h1>
+  <span class="host" id="hName"></span>
+  <button onclick="rename()">✏️ PC ka naam</button>
+</header>
+<main>
+  <section class="card wide" id="pendCard" style="display:none">
+    <h2>❓ Ijazat maangi gayi hai</h2>
+    <div id="pend"></div>
+  </section>
+
+  <section class="card">
+    <h2>🔗 Naya phone / PC jodna</h2>
+    <div class="mute">Client app me ye dono daaliye:</div>
+    <div class="row" style="margin-top:8px"><div><div class="mute">Host ID</div><div class="big" id="hid">—</div></div></div>
+    <div class="row" style="margin-top:8px"><div><div class="mute">PIN (ek baar use hota hai)</div><div class="big" id="pin">—</div></div>
+      <button onclick="post('/a/newpin',{})">🔄 Naya PIN</button></div>
+    <div class="mute" id="pinLock" style="color:var(--red)"></div>
+  </section>
+
+  <section class="card">
+    <h2>🌐 Connection</h2>
+    <div id="conn" class="mute"></div>
+  </section>
+
+  <section class="card wide">
+    <h2>👤 Login ID / Password — har client ka apna (sabse aasaan)</h2>
+    <div class="mute" style="margin-bottom:8px">Client kisi bhi PC / phone / link se isi ID-password se login kare — ijazat yahin wali milegi, baar-baar dena nahi padega.</div>
+    <div class="row" style="margin-bottom:10px">
+      <input id="nuUser" placeholder="Login ID (jaise ramesh)" style="padding:8px;border:1px solid #e5e7eb;border-radius:8px;font:inherit">
+      <input id="nuPass" placeholder="Password (6+ akshar)" style="padding:8px;border:1px solid #e5e7eb;border-radius:8px;font:inherit">
+      <button class="p" onclick="addUser()">➕ Login banao</button>
+    </div>
+    <table>
+      <thead><tr><th>Login ID</th><th>Aakhri baar</th><th>🖨️ Print</th><th>📠 Scan</th><th>🖥️ Remote</th><th>📤 File bhejna</th><th>📥 Download</th><th></th></tr></thead>
+      <tbody id="users"></tbody>
+    </table>
+  </section>
+
+  <section class="card wide">
+    <h2>📱 Jude hue devices — kaun kya kar sakta hai</h2>
+    <div class="mute" style="margin-bottom:8px">✅ Seedha = bina poochhe &nbsp; ❓ Poochho = har baar is PC par "Allow?" aayega &nbsp; ⛔ Mana = bilkul nahi</div>
+    <table>
+      <thead><tr><th>Device</th><th>Aakhri baar</th><th>🖨️ Print</th><th>📠 Scan</th><th>🖥️ Remote</th><th>📤 File bhejna</th><th>📥 Download</th><th></th></tr></thead>
+      <tbody id="devs"></tbody>
+      <tfoot><tr style="background:#f9fafb"><td><b>Naye device</b><div class="mute">jodte hi ye milega</div></td><td></td>
+        <td id="d_print"></td><td id="d_scan"></td><td id="d_remote"></td><td id="d_send"></td><td id="d_download"></td><td></td></tr></tfoot>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>📋 Haal ke kaam</h2>
+    <div id="jobs" class="mute">—</div>
+  </section>
+  <section class="card">
+    <h2>📜 Log</h2>
+    <pre id="log"></pre>
+  </section>
+</main>
+<script>
+const KINDS = ['print', 'scan', 'remote', 'send', 'download'];
+const LBL = { allow: '✅ Seedha', ask: '❓ Poochho', deny: '⛔ Mana' };
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ago = t => { if (!t) return '—'; const s = (Date.now() - t) / 1000; if (s < 90) return 'abhi'; if (s < 3600) return Math.round(s / 60) + ' min pehle'; if (s < 86400) return Math.round(s / 3600) + ' ghante pehle'; return Math.round(s / 86400) + ' din pehle'; };
+async function post(url, body) {
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!r.ok) alert((await r.json().catch(() => ({}))).err || 'Gadbad'); load();
+}
+function sel(id, kind, val) {
+  return '<select class="' + val + '" onchange="post(\'/a/perm\',{id:\'' + id + '\',kind:\'' + kind + '\',value:this.value})">' +
+    ['allow', 'ask', 'deny'].map(v => '<option value="' + v + '"' + (v === val ? ' selected' : '') + '>' + LBL[v] + '</option>').join('') + '</select>';
+}
+let lastSig = '', DEV = {};
+async function addUser() {
+  const u = document.getElementById('nuUser').value.trim(), pw = document.getElementById('nuPass').value;
+  const r = await fetch('/a/user-add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: u, pass: pw }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) return alert(j.err || 'Gadbad');
+  alert('Login bana: ' + j.user + '\nPassword: ' + pw + '\n\nYe client ko de dijiye. Ijazat neeche us line me chuniye.');
+  document.getElementById('nuUser').value = ''; document.getElementById('nuPass').value = ''; lastSig = ''; load();
+}
+function userPass(u) { const pw = prompt('"' + u + '" ka naya password (6+ akshar).\nIs ID ke sab purane login band ho jayenge:'); if (pw) post('/a/user-pass', { user: u, pass: pw }); }
+function userDel(u) { if (confirm('Login "' + u + '" hata dein? Is ID se jude sab device kat jayenge.')) post('/a/user-del', { user: u }); }
+async function load() {
+  let s; try { s = await (await fetch('/a/state')).json(); } catch (e) { document.getElementById('conn').innerHTML = '<b style="color:red">Host band hai — START-HOST.bat chalaiye</b>'; return; }
+  document.getElementById('hName').textContent = s.name;
+  document.getElementById('hid').textContent = s.hostId;
+  document.getElementById('pin').textContent = s.pin;
+  document.getElementById('pinLock').textContent = s.pinLocked ? '🔒 5 galat PIN — kuch der pairing band. "Naya PIN" dabakar turant chalu karein.' : '';
+  document.getElementById('conn').innerHTML =
+    '<div><span class="dot ' + (s.lan.length ? 'on' : 'off') + '"></span><b>LAN (same WiFi):</b> ' + (s.lan.map(esc).join(', ') || 'network nahi') + '</div>' +
+    '<div style="margin-top:6px"><span class="dot ' + (s.url ? 'on' : 'off') + '"></span><b>Internet:</b> ' + (s.url ? esc(s.url) : 'chalu ho raha hai / band') + '</div>' +
+    (s.goLink ? '<div style="margin-top:6px"><span class="dot ' + (s.github === 'ok' ? 'on' : 'off') + '"></span><b>Link badle to bhi apne aap judna (GitHub):</b> ' + (s.github === 'ok' ? 'chalu' : 'intezaar...') + '</div>' +
+      '<div style="margin-top:6px">🔗 <b>Pakka link</b> (kabhi nahi badlega, internet se kholo): <a href="' + esc(s.goLink) + '" target="_blank"><code>' + esc(s.goLink) + '</code></a></div>' : '') +
+    '<div style="margin-top:6px"><span class="dot ' + (s.helper ? 'on' : 'off') + '"></span><b>Remote / popup helper:</b> ' + (s.helper ? 'chalu' : 'band (log dekhein)') + '</div>' +
+    '<div style="margin-top:6px"><span class="dot ' + (s.fbOk ? 'on' : 'off') + '"></span><b>Firebase me pata:</b> ' + (s.fbOk ? 'chalu' : 'band') + '</div>' +
+    '<div style="margin-top:6px">🔄 <b>Version ' + esc(s.ver) + ':</b> ' + esc(s.update || '') + '</div>' +
+    '<div style="margin-top:6px">📁 <b>Share folder</b> (Download yahin se, aayi files "Aayi hui files" me): <code>' + esc(s.share) + '</code></div>' +
+    '<div style="margin-top:8px">Isi network ka doosra PC: browser me <code>' + esc(s.lan[0] || '') + '</code> kholein.</div>';
+  // pending
+  const pc = document.getElementById('pendCard');
+  pc.style.display = s.pending.length ? '' : 'none';
+  document.getElementById('pend').innerHTML = s.pending.map(p => '<div class="pend">' + esc(p.text) +
+    '<div class="row" style="margin-top:10px"><button class="g" onclick="post(\'/a/answer\',{id:\'' + p.id + '\',ok:true})">✅ Allow</button>' +
+    '<button class="r" onclick="post(\'/a/answer\',{id:\'' + p.id + '\',ok:false})">⛔ Mana</button></div></div>').join('');
+  // devices (select khula ho to dobara na banao)
+  DEV = {}; for (const d of s.devices) DEV[d.id] = d.name;
+  const sig = JSON.stringify([s.devices, s.defaults, s.users]);
+  if (sig !== lastSig && !(document.activeElement && document.activeElement.tagName === 'SELECT')) {
+    lastSig = sig;
+    document.getElementById('users').innerHTML = (s.users || []).length ? s.users.map(u => '<tr><td><b>' + esc(u.user) + '</b><div class="mute">' + u.devices + ' device</div></td><td class="mute">' + ago(u.lastSeen) + '</td>' +
+      KINDS.map(k => '<td>' + sel('user:' + u.user, k, u.perms[k]) + '</td>').join('') +
+      '<td class="row"><button data-u="' + esc(u.user) + '" onclick="userPass(this.dataset.u)">🔁 Password</button><button data-u="' + esc(u.user) + '" onclick="userDel(this.dataset.u)">🗑️</button></td></tr>').join('')
+      : '<tr><td colspan="8" class="mute">Abhi koi login nahi. Upar Login ID + Password daal kar banaiye.</td></tr>';
+    document.getElementById('devs').innerHTML = s.devices.length ? s.devices.map(d => '<tr><td><b>' + esc(d.name) + '</b>' +
+      (d.remote ? ' <span class="live">● Remote chal raha</span>' : '') + '</td><td class="mute">' + ago(d.lastSeen) + '</td>' +
+      (d.user ? '<td colspan="5" class="mute">👤 Login <b>' + esc(d.user) + '</b> wali ijazat (upar badliye)</td>' : KINDS.map(k => '<td>' + sel(d.id, k, d.perms[k]) + '</td>').join('')) +
+      '<td class="row"><button onclick="renDev(\'' + d.id + '\')">✏️</button>' +
+      (d.remote ? '<button class="r" onclick="post(\'/a/kick\',{id:\'' + d.id + '\'})">Remote band</button>' : '') +
+      '<button onclick="if(confirm(\'Is device ko hata dein? Dobara PIN se jodna padega.\'))post(\'/a/remove\',{id:\'' + d.id + '\'})">🗑️</button></td></tr>').join('')
+      : '<tr><td colspan="8" class="mute">Abhi koi device nahi juda. Phone ki MeraPrint app me Host ID + PIN daaliye.</td></tr>';
+    for (const k of KINDS) document.getElementById('d_' + k).innerHTML = sel('defaults', k, s.defaults[k]);
+  }
+  const ST = { approval: '⏳ ijazat', printing: '🖨️ chal raha', scanning: '📠 chal raha', done: '✅', error: '✖', denied: '⛔' };
+  const KI = { print: '🖨️', scan: '📠', send: '📤', download: '📥' };
+  document.getElementById('jobs').innerHTML = s.jobs.length ? s.jobs.map(j => '<div>' + (ST[j.state] || j.state) + ' ' + (KI[j.kind] || '') + ' <b>' + esc(j.name || '') + '</b> — ' + esc(j.device) + ' <span class="mute">' + esc(j.msg) + '</span></div>').join('') : 'Abhi kuch nahi';
+  const lg = document.getElementById('log'); const atEnd = lg.scrollTop + lg.clientHeight >= lg.scrollHeight - 5;
+  lg.textContent = s.log.join('\n'); if (atEnd) lg.scrollTop = lg.scrollHeight;
+}
+function renDev(id) { const n = prompt('Device ka naam:', DEV[id] || ''); if (n) post('/a/rename', { id, name: n }); }
+function rename() { const n = prompt('Is PC ka naam (phone par yahi dikhega):', document.getElementById('hName').textContent); if (n) post('/a/hostname', { name: n }); }
+load(); setInterval(load, 2000);
+</script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MeraPrint Host — apna PC Host banayein</title>
+<style>
+  body { margin:0; font:16px/1.55 system-ui,"Segoe UI",Roboto,sans-serif; background:#f2f4f8; color:#111827; }
+  main { max-width:640px; margin:0 auto; padding:28px 18px; }
+  .card { background:#fff; border:1px solid #e5e7eb; border-radius:16px; padding:22px; margin-bottom:14px; }
+  h1 { font-size:24px; margin:0 0 6px; } h2 { font-size:17px; margin:0 0 8px; }
+  .mute { color:#6b7280; font-size:14px; }
+  a.btn { display:block; text-align:center; padding:14px; border-radius:12px; background:#0a7cff; color:#fff; text-decoration:none; font-weight:700; font-size:17px; }
+  ol { padding-left:20px; margin:0; } li { margin:6px 0; } code { background:#eef2ff; padding:2px 6px; border-radius:6px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <h1>🖨️ MeraPrint Host</h1>
+    <div class="mute">Apne PC ko Host banayein — phone / doosre PC se kahin se bhi print, scan, file aur remote. Built by Pankaj Jaiswal.</div>
+  </div>
+  <div class="card">
+    <a class="btn" href="install.bat" download="MeraPrint-Host-Install.bat">⬇️ MeraPrint Host Install download karo</a>
+    <ol style="margin-top:14px">
+      <li>Download hui <b>MeraPrint-Host-Install.bat</b> chalaiye. (Browser bole "khatarnak ho sakti hai" to <b>Keep / Rakhein</b>, Windows bole to <b>More info → Run anyway</b>.)</li>
+      <li>Node.js na ho to wo khud lagega (ek baar).</li>
+      <li>Host chalu hoga aur browser me Admin panel khulega — wahan aapka apna <b>Host ID</b> aur <b>PIN</b> dikhega.</li>
+      <li>Windows Firewall poochhe to <b>Private networks → Allow</b>.</li>
+      <li>Phone (MeraPrint app) ya doosre PC ke browser me Host ID + PIN daal kar jodiye.</li>
+    </ol>
+  </div>
+  <div class="card">
+    <h2>Aapko pata hona chahiye</h2>
+    <ul class="mute" style="padding-left:18px;margin:0">
+      <li>Har Host ka apna Host ID, PIN, jude device aur share folder — kisi aur ko aapka data nahi dikhta.</li>
+      <li>Kaun print / scan / remote / file kar sake — aap apne Admin panel (<code>http://localhost:8791</code>) me chunte hain.</li>
+      <li>Naye update apne aap aate hain (digital signature jaanch kar).</li>
+      <li>Install folder: <code>C:\MeraPrint-Host</code></li>
+    </ul>
+  </div>
+</main>
+</body>
+</html>

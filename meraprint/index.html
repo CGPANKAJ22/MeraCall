@@ -30,6 +30,8 @@
   let j = null;
   try { const r = await fetch('https://api.github.com/repos/' + repo + '/contents/meraprint/' + id + '.json', { headers: { Accept: 'application/vnd.github.raw' }, cache: 'no-store' }); if (r.ok) j = await r.json(); } catch (e) {}
   if (!j) try { const r = await fetch('https://raw.githubusercontent.com/' + repo + '/HEAD/meraprint/' + id + '.json?t=' + Date.now()); if (r.ok) j = await r.json(); } catch (e) {}
+  const FB = "https://meracall-e1b57-default-rtdb.asia-southeast1.firebasedatabase.app/";   // doosre logon ke Host apna pata Firebase me likhte hain
+  if (!j && FB.indexOf('http') === 0) try { const r = await fetch(FB + 'printHosts/' + id + '/pub.json', { cache: 'no-store' }); if (r.ok) j = await r.json(); } catch (e) {}
   if (!j) { msg.textContent = 'Is Host ka pata nahi mila. Host PC par START-HOST.bat chal raha hai?'; return; }
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const age = Math.round((Date.now() - (j.ts || 0)) / 60000);
