@@ -1,8 +1,8 @@
 {
  "app": "MeraPrint Host",
- "version": 1,
- "date": "2026-11-25T04:06:28.016Z",
- "note": "123456987",
+ "version": 2,
+ "date": "2026-11-25T16:53:42.475Z",
+ "note": "123456",
  "files": [
   {
    "path": "host/host.js",
